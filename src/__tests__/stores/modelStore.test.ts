@@ -182,7 +182,7 @@ describe('useModelStore', () => {
       expect(prog).toBeDefined();
       expect(prog.modelId).toBe(expectedModelId);
       expect(prog.status).toBe('downloading');
-      expect(prog.current).toBe(0);
+      expect(prog.logs).toEqual([]);
     });
 
     it('should trim empty filename (user did not pick a specific file)', async () => {
@@ -227,24 +227,21 @@ describe('useModelStore', () => {
       await useModelStore.getState().cancelDownload('dl-1');
 
       expect(vi.mocked(invoke)).toHaveBeenCalledWith('cancel_download', {
-        modelId: 'dl-1',
+        id: 'dl-1',
       });
     });
 
-    it('should mark existing progress as cancelled', async () => {
+    it('should remove existing progress on cancel', async () => {
       useModelStore.getState().updateDownloadProgress({
         modelId: 'dl-1',
         repoId: 'test',
-        current: 100,
-        total: 1000,
-        speed: 10,
         status: 'downloading',
       });
       vi.mocked(invoke).mockResolvedValueOnce(undefined);
 
       await useModelStore.getState().cancelDownload('dl-1');
 
-      expect(useModelStore.getState().downloadProgress['dl-1'].status).toBe('cancelled');
+      expect(useModelStore.getState().downloadProgress['dl-1']).toBeUndefined();
     });
   });
 
@@ -321,54 +318,48 @@ describe('useModelStore', () => {
       const progress: DownloadProgress = {
         modelId: 'dl-1',
         repoId: 'Qwen/Qwen2.5-7B-Instruct-GGUF',
-        current: 500_000_000,
-        total: 4_500_000_000,
-        speed: 10_000_000,
         status: 'downloading',
       };
 
       useModelStore.getState().updateDownloadProgress(progress);
 
-      expect(useModelStore.getState().downloadProgress['dl-1']).toEqual(progress);
+      const stored = useModelStore.getState().downloadProgress['dl-1'];
+      expect(stored).toBeDefined();
+      expect(stored.modelId).toBe('dl-1');
+      expect(stored.repoId).toBe('Qwen/Qwen2.5-7B-Instruct-GGUF');
+      expect(stored.status).toBe('downloading');
+      expect(stored.logs).toEqual([]);
     });
 
     it('should update existing progress', () => {
       const initial: DownloadProgress = {
         modelId: 'dl-1',
         repoId: 'test',
-        current: 100,
-        total: 1000,
-        speed: 10,
         status: 'downloading',
       };
       const updated: DownloadProgress = {
-        ...initial,
-        current: 500,
-        speed: 50,
+        modelId: 'dl-1',
+        repoId: 'test',
+        status: 'completed',
+        localPath: '/models/test.gguf',
       };
 
       useModelStore.getState().updateDownloadProgress(initial);
       useModelStore.getState().updateDownloadProgress(updated);
 
-      expect(useModelStore.getState().downloadProgress['dl-1'].current).toBe(500);
-      expect(useModelStore.getState().downloadProgress['dl-1'].speed).toBe(50);
+      expect(useModelStore.getState().downloadProgress['dl-1'].status).toBe('completed');
+      expect(useModelStore.getState().downloadProgress['dl-1'].localPath).toBe('/models/test.gguf');
     });
 
     it('should handle multiple downloads', () => {
       const dl1: DownloadProgress = {
         modelId: 'dl-1',
         repoId: 'model-a',
-        current: 100,
-        total: 1000,
-        speed: 10,
         status: 'downloading',
       };
       const dl2: DownloadProgress = {
         modelId: 'dl-2',
         repoId: 'model-b',
-        current: 200,
-        total: 2000,
-        speed: 20,
         status: 'downloading',
       };
 

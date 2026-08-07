@@ -119,7 +119,6 @@ describe('useServiceManager', () => {
         modelName: 'Qwen2.5-7B',
         port: 8080,
         pid: 12345,
-        uptime: 3600,
         startedAt: '2026-01-01 00:00:00',
       };
 

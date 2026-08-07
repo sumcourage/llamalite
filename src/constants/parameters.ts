@@ -197,17 +197,6 @@ export const PARAMETER_DEFINITIONS: ParameterMeta[] = [
     advanced: true,
   },
   {
-    key: 'parallel',
-    flag: '-np',
-    fullFlag: '--parallel',
-    category: 'general',
-    label: '并行序列数',
-    description: '指定可以并行处理的序列数量，用于多路复用场景',
-    type: 'number',
-    defaultValue: 1,
-    validation: { min: 1, max: 256, step: 1 },
-  },
-  {
     key: 'lora',
     flag: '',
     fullFlag: '--lora',
