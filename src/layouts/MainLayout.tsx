@@ -52,7 +52,7 @@ const MainLayout: React.FC = () => {
         <Content
           style={{
             padding: 24,
-            minHeight: 'calc(100vh - 48px)',
+            height: 'calc(100vh - 48px)',
             overflow: 'auto',
             background: '#0a0a14',
           }}
