@@ -1,0 +1,292 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans SC', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2d2d4a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3d3d5a;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Ant Design overrides for dark theme */
+.ant-layout {
+  min-height: 100vh;
+}
+
+.ant-layout-sider {
+  border-right: 1px solid #252540;
+}
+
+.ant-menu-item-selected::after {
+  opacity: 0;
+}
+
+/* Terminal log area */
+.log-terminal {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #0a0a14;
+  border: 1px solid #252540;
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-terminal .log-entry {
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(37, 37, 64, 0.3);
+}
+
+.log-terminal .log-level-info {
+  color: #94a3b8;
+}
+
+.log-terminal .log-level-warn {
+  color: #f59e0b;
+}
+
+.log-terminal .log-level-error {
+  color: #ef4444;
+}
+
+.log-terminal .log-level-debug {
+  color: #64748b;
+}
+
+/* Card hover effects */
+.hover-card {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.hover-card:hover {
+  border-color: #7c3aed !important;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+  transform: translateY(-1px);
+}
+
+/* Status badge animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.status-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Spinning animation for loading states */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-animation {
+  animation: spin 1s linear infinite;
+}
+
+/* Page transition */
+.page-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Dashboard card grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+/* Service card grid */
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+/* Model card grid */
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Recommendation card grid */
+.recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+/* Section spacing */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+/* Empty state */
+.empty-state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(59, 130, 246, 0.18));
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  color: #a78bfa;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.15);
+}
+
+.empty-state-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 8px;
+  letter-spacing: 0.2px;
+}
+
+.empty-state-description {
+  font-size: 14px;
+  color: #94a3b8;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+/* Quick action buttons */
+.quick-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Loading skeleton */
+.skeleton-loading {
+  background: linear-gradient(90deg, #1a1a2e 25%, #1e1e3a 50%, #1a1a2e 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Model tabs dark theme */
+.model-tabs .ant-tabs-nav {
+  margin-bottom: 20px;
+}
+
+.model-tabs .ant-tabs-tab {
+  color: #94a3b8 !important;
+  font-size: 14px;
+  padding: 10px 16px;
+  transition: color 0.2s ease;
+}
+
+.model-tabs .ant-tabs-tab:hover {
+  color: #c4b5fd !important;
+}
+
+.model-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #e2e8f0 !important;
+}
+
+.model-tabs .ant-tabs-ink-bar {
+  background: #7c3aed !important;
+  height: 2px;
+}
+
+.model-tabs .ant-tabs-content-holder {
+  padding: 4px 0;
+}
+
+/* ── HF Model card grid ─────────────────────────────────────────── */
+.hf-model-grid .ant-card {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.hf-model-grid .ant-card:hover {
+  border-color: rgba(124, 58, 237, 0.4) !important;
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.12);
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build-report/
+.trae/
+.trae-html-share-packages/
+.vscode/
+target/
+.codegraph/
+__pycache__/
+*.pyc
+.pytest_cache/
+src-tauri/gen/schemas/
+*.log
+.DS_Store

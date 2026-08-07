@@ -1,0 +1,32 @@
+{
+  "productName": "Llamalite",
+  "version": "0.1.0",
+  "identifier": "com.llamalite.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Llamalite - LLM 服务管理器",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "dmg", "appimage", "deb", "rpm"],
+    "icon": ["icons/icon.ico", "icons/icon.png", "icons/icon.icns"],
+    "resources": ["python/*"]
+  }
+}
