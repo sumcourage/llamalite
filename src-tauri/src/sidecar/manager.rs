@@ -1,8 +1,9 @@
+use crate::models::model::LocalModel;
 use crate::models::service::ServiceConfig;
 use chrono::Local;
 use serde::Deserialize;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_shell::process::CommandEvent;
@@ -59,6 +60,93 @@ fn resolve_server_binary(server_path: Option<&str>) -> Option<String> {
     None
 }
 
+/// Normalize a model path for comparison: Windows is case-insensitive and
+/// paths may mix `\` and `/` separators.
+fn normalize_model_path(path: &str) -> String {
+    path.replace('\\', "/").to_lowercase()
+}
+
+/// Pick the multimodal projector (mmproj) registered for a model path.
+///
+/// Pure lookup so it can be unit-tested without an AppHandle.
+fn pick_mmproj(models: &[LocalModel], model_path: &str) -> Option<String> {
+    if model_path.trim().is_empty() {
+        return None;
+    }
+    let target = normalize_model_path(model_path);
+    models
+        .iter()
+        .find(|m| normalize_model_path(&m.local_path) == target)
+        .and_then(|m| m.metadata.mmproj_path.as_deref())
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(|p| p.to_string())
+}
+
+/// Look up the multimodal projector for a model, ignoring stale records whose
+/// file no longer exists on disk.
+fn find_mmproj_for_model(app: &AppHandle, model_path: &str) -> Option<String> {
+    let mmproj = pick_mmproj(&crate::storage::model_store::load_all(app), model_path)?;
+    if Path::new(&mmproj).is_file() {
+        Some(mmproj)
+    } else {
+        None
+    }
+}
+
+/// Classify a llama-server stderr line by the level marker it emits itself.
+///
+/// llama.cpp writes INFO and WARNING to stderr alongside real errors, so
+/// tagging the whole stream as `ERROR` makes a healthy startup look like a
+/// failure. Lines look like `<elapsed> <LEVEL> <component> <module>: <msg>`,
+/// e.g. `0.00.486.038 W model has unused tensor ...`.
+///
+/// Returns the prefix the frontend log parser understands: `ERROR`, `WARN`,
+/// `DEBUG`, or `INFO`.
+fn llama_log_level(line: &str) -> &'static str {
+    let mut tokens = line.split_whitespace();
+    // First token is the elapsed-time stamp, the level char follows it.
+    if let (Some(_stamp), Some(level)) = (tokens.next(), tokens.next()) {
+        match level {
+            "E" => return "ERROR",
+            "W" => return "WARN",
+            "D" => return "DEBUG",
+            _ => {}
+        }
+    }
+    "INFO"
+}
+
+/// Format a llama-server log line the way the frontend parser expects:
+/// bare for info, `WARN:` / `ERROR:` / `DEBUG:` prefixes otherwise.
+fn format_service_log(timestamp: &str, line: &str) -> String {
+    let level = llama_log_level(line);
+    let message = line.trim();
+    if level == "INFO" {
+        format!("[{}] {}", timestamp, message)
+    } else {
+        format!("[{}] {}: {}", timestamp, level, message)
+    }
+}
+
+/// Compute the status to report after a process exits.
+///
+/// An intentional stop (the user pressed stop/restart) must never surface as an
+/// error, while an unexpected non-zero exit must. This is kept pure so the rule
+/// can be tested without spawning a process.
+fn termination_status(intentional: bool, exit_code: Option<i32>) -> (String, Option<String>) {
+    if intentional {
+        return ("stopped".to_string(), None);
+    }
+    match exit_code {
+        Some(code) if code != 0 => (
+            "error".to_string(),
+            Some(format!("进程异常退出，退出码: {}", code)),
+        ),
+        _ => ("stopped".to_string(), None),
+    }
+}
+
 /// Represents the current status of a managed service process.
 #[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct ServiceStatus {
@@ -99,6 +187,11 @@ pub struct ServiceManager {
     /// Flag to indicate that the process is being intentionally stopped.
     /// When true, the Terminated handler should NOT set "error" status.
     intentional_stop: Arc<AtomicBool>,
+    /// Incremented on every start. Each capture task records the generation it
+    /// belongs to and ignores events once a newer process has been started, so
+    /// a dying process cannot overwrite the status or child handle of its
+    /// replacement (which is what made "restart" report a bogus crash).
+    generation: Arc<AtomicU64>,
 }
 
 impl ServiceManager {
@@ -109,6 +202,7 @@ impl ServiceManager {
             status: Arc::new(Mutex::new(ServiceStatus::stopped())),
             logs: Arc::new(Mutex::new(Vec::new())),
             intentional_stop: Arc::new(AtomicBool::new(false)),
+            generation: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -147,6 +241,10 @@ impl ServiceManager {
             return Err("服务已在运行中，请先停止当前服务".to_string());
         }
 
+        // Claim a new generation. Any capture task still draining the previous
+        // process will see a mismatch and stop touching shared state.
+        let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+
         // Resolve the llama-server binary: PATH > configured path > sidecar
         let shell = app.shell();
         let resolved = resolve_server_binary(server_path);
@@ -176,7 +274,26 @@ impl ServiceManager {
         command = command.arg("--model").arg(&config.model_path);
 
         // Parse remaining parameters into CLI args
-        let args = self.build_args(config);
+        let mut args = self.build_args(config);
+
+        // Vision models need their multimodal projector to accept image input.
+        // The UI backfills `--mmproj` when a model is selected, but services
+        // saved before that existed (or created outside the UI) would silently
+        // start without it and reject images. Fall back to the projector
+        // recorded alongside the model file.
+        let has_mmproj = config
+            .parameters
+            .get("mmproj")
+            .and_then(|v| v.as_str())
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false);
+        if !has_mmproj {
+            if let Some(mmproj) = find_mmproj_for_model(app, &config.model_path) {
+                args.push("--mmproj".to_string());
+                args.push(mmproj);
+            }
+        }
+
         for arg in args {
             command = command.arg(arg);
         }
@@ -237,16 +354,24 @@ impl ServiceManager {
         let logs_arc = self.logs.clone();
         let child_arc = self.child.clone();
         let intentional_stop_flag = self.intentional_stop.clone();
+        let generation_arc = self.generation.clone();
         let service_id = config.id.clone();
 
         // Spawn background task to capture stdout/stderr
         tauri::async_runtime::spawn(async move {
             while let Some(event) = rx.recv().await {
+                // A restart spawns the replacement before this process has
+                // finished dying. Once a newer generation exists, this task is
+                // stale: its logs belong to a dead session and its Terminated
+                // event must not touch the live process's status or handle.
+                if generation_arc.load(Ordering::SeqCst) != generation {
+                    continue;
+                }
                 match event {
                     CommandEvent::Stdout(bytes) => {
                         let line = String::from_utf8_lossy(&bytes);
                         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                        let log = format!("[{}] {}", timestamp, line.trim());
+                        let log = format_service_log(&timestamp, &line);
 
                         let mut logs = logs_arc.lock().unwrap();
                         logs.push(log.clone());
@@ -262,7 +387,7 @@ impl ServiceManager {
                     CommandEvent::Stderr(bytes) => {
                         let line = String::from_utf8_lossy(&bytes);
                         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                        let log = format!("[{}] ERROR: {}", timestamp, line.trim());
+                        let log = format_service_log(&timestamp, &line);
 
                         let mut logs = logs_arc.lock().unwrap();
                         logs.push(log.clone());
@@ -278,22 +403,11 @@ impl ServiceManager {
                     CommandEvent::Terminated(payload) => {
                         let full_status = {
                             let mut status = status_arc.lock().unwrap();
-                            // Check if this was an intentional stop
                             let was_intentional = intentional_stop_flag.load(Ordering::SeqCst);
-                            status.status = "stopped".to_string();
-                            if !was_intentional {
-                                // Only treat as error if the process crashed unexpectedly
-                                if let Some(code) = payload.code {
-                                    if code != 0 {
-                                        status.error_message =
-                                            Some(format!("进程异常退出，退出码: {}", code));
-                                        status.status = "error".to_string();
-                                    }
-                                }
-                            } else {
-                                // Intentional stop — clear any error message
-                                status.error_message = None;
-                            }
+                            let (next_status, error_message) =
+                                termination_status(was_intentional, payload.code);
+                            status.status = next_status;
+                            status.error_message = error_message;
                             status.clone()
                         };
 
@@ -355,12 +469,14 @@ impl ServiceManager {
             {
                 let mut status = self.status.lock().map_err(|e| e.to_string())?;
                 status.status = "stopped".to_string();
-                status.service_id = None;
                 status.service_name = None;
                 status.pid = None;
                 status.port = None;
                 status.started_at = None;
                 status.error_message = None;
+                // `service_id` is intentionally kept so the emitted event tells the
+                // frontend which service stopped (it is also how get_service_status
+                // maps a status back to a single service).
             }
 
             // Emit status event so frontend knows the service stopped
@@ -420,6 +536,18 @@ impl ServiceManager {
             }
         }
 
+        // Boolean parameters whose llama.cpp long flag is not a plain switch.
+        // Emitting these bare makes llama.cpp consume the following argument as
+        // their value (e.g. `--flash-attn --presence-penalty`), so an explicit
+        // value has to be supplied.
+        fn bool_flag_value(k: &str) -> Option<&'static str> {
+            match k {
+                "flash-attn" => Some("on"),
+                "numa" => Some("distribute"),
+                _ => None,
+            }
+        }
+
         let mut args = Vec::new();
         for (key, value) in &config.parameters {
             // Skip "port" as it is handled via --port flag separately if needed
@@ -455,6 +583,9 @@ impl ServiceManager {
                 serde_json::Value::Bool(b) => {
                     if *b {
                         args.push(flag);
+                        if let Some(v) = bool_flag_value(effective_key) {
+                            args.push(v.to_string());
+                        }
                     }
                 }
                 serde_json::Value::Array(arr) => {
@@ -484,7 +615,125 @@ impl Default for ServiceManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::model::ModelMetadata;
     use std::collections::HashMap;
+
+    fn local_model(path: &str, mmproj: Option<&str>) -> LocalModel {
+        LocalModel {
+            id: "test-id".to_string(),
+            repo_id: Some("test/repo".to_string()),
+            filename: "model.gguf".to_string(),
+            local_path: path.to_string(),
+            size_bytes: 0,
+            quantization: None,
+            downloaded_at: "2026-01-01".to_string(),
+            metadata: ModelMetadata {
+                description: None,
+                tags: vec!["downloaded".to_string()],
+                mmproj_path: mmproj.map(|p| p.to_string()),
+            },
+        }
+    }
+
+    #[test]
+    fn test_llama_log_level_reads_llama_marker() {
+        assert_eq!(llama_log_level("0.00.065.578 I cmn  common_param: verbosity = 3"), "INFO");
+        assert_eq!(
+            llama_log_level("0.00.486.038 W model has unused tensor blk.16.attn_q.weight"),
+            "WARN"
+        );
+        assert_eq!(llama_log_level("0.01.000.000 E srv  llama_server: boom"), "ERROR");
+        assert_eq!(llama_log_level("0.01.000.000 D srv  llama_server: trace"), "DEBUG");
+    }
+
+    #[test]
+    fn test_llama_log_level_defaults_to_info() {
+        // Lines without llama.cpp's `<elapsed> <LEVEL>` prefix must not be
+        // reported as errors just because they arrived on stderr.
+        assert_eq!(llama_log_level("plain message"), "INFO");
+        assert_eq!(llama_log_level(""), "INFO");
+        assert_eq!(llama_log_level("2026-01-01 00:00:00"), "INFO");
+    }
+
+    #[test]
+    fn test_format_service_log_matches_frontend_parser() {
+        let ts = "2026-01-01 00:00:00";
+        // INFO stays bare so the frontend parses it as info
+        assert_eq!(
+            format_service_log(ts, "0.00.065.578 I cmn  common_param: ready\n"),
+            "[2026-01-01 00:00:00] 0.00.065.578 I cmn  common_param: ready"
+        );
+        assert_eq!(
+            format_service_log(ts, "0.00.486.038 W model has unused tensor"),
+            "[2026-01-01 00:00:00] WARN: 0.00.486.038 W model has unused tensor"
+        );
+        assert_eq!(
+            format_service_log(ts, "0.01.000.000 E failed to load"),
+            "[2026-01-01 00:00:00] ERROR: 0.01.000.000 E failed to load"
+        );
+    }
+
+    #[test]
+    fn test_termination_status_intentional_stop_is_not_an_error() {
+        // This is the restart path: the old process is killed, so its exit code
+        // is non-zero, but it must never be reported as a crash.
+        assert_eq!(termination_status(true, Some(1)), ("stopped".to_string(), None));
+        assert_eq!(termination_status(true, None), ("stopped".to_string(), None));
+    }
+
+    #[test]
+    fn test_termination_status_unexpected_crash_is_an_error() {
+        let (status, message) = termination_status(false, Some(1));
+        assert_eq!(status, "error");
+        assert_eq!(message, Some("进程异常退出，退出码: 1".to_string()));
+    }
+
+    #[test]
+    fn test_termination_status_clean_exit_is_stopped() {
+        assert_eq!(termination_status(false, Some(0)), ("stopped".to_string(), None));
+        assert_eq!(termination_status(false, None), ("stopped".to_string(), None));
+    }
+
+    #[test]
+    fn test_pick_mmproj_returns_registered_projector() {
+        let models = vec![local_model(
+            "D:\\models\\GLM-OCR-Q8_0.gguf",
+            Some("D:\\models\\mmproj-GLM-OCR-Q8_0.gguf"),
+        )];
+        assert_eq!(
+            pick_mmproj(&models, "D:\\models\\GLM-OCR-Q8_0.gguf"),
+            Some("D:\\models\\mmproj-GLM-OCR-Q8_0.gguf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_pick_mmproj_matches_ignoring_case_and_separators() {
+        let models = vec![local_model(
+            "D:\\Models\\GLM-OCR-Q8_0.gguf",
+            Some("D:\\Models\\mmproj-GLM-OCR-Q8_0.gguf"),
+        )];
+        assert_eq!(
+            pick_mmproj(&models, "d:/models/glm-ocr-q8_0.gguf"),
+            Some("D:\\Models\\mmproj-GLM-OCR-Q8_0.gguf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_pick_mmproj_none_for_text_model() {
+        let models = vec![local_model("D:\\models\\llama.gguf", None)];
+        assert_eq!(pick_mmproj(&models, "D:\\models\\llama.gguf"), None);
+    }
+
+    #[test]
+    fn test_pick_mmproj_none_when_path_unmatched_or_empty() {
+        let models = vec![local_model(
+            "D:\\models\\GLM-OCR-Q8_0.gguf",
+            Some("D:\\models\\mmproj-GLM-OCR-Q8_0.gguf"),
+        )];
+        assert_eq!(pick_mmproj(&models, "D:\\models\\other.gguf"), None);
+        assert_eq!(pick_mmproj(&models, "   "), None);
+        assert_eq!(pick_mmproj(&[], "D:\\models\\GLM-OCR-Q8_0.gguf"), None);
+    }
 
     #[test]
     fn test_service_manager_new_creates_stopped_manager() {
@@ -604,9 +853,10 @@ mod tests {
         // ctx_size should become --ctx-size (underscore to hyphen)
         assert!(args.contains(&"--ctx-size".to_string()));
         assert!(args.contains(&"2048".to_string()));
-        // String parameter
-        assert!(args.contains(&"--model".to_string()));
-        assert!(args.contains(&"test-model".to_string()));
+        // "model" is added by start() via command.arg("--model"), so build_args
+        // must not emit it again
+        assert!(!args.contains(&"--model".to_string()));
+        assert!(!args.contains(&"test-model".to_string()));
     }
 
     #[test]
@@ -657,6 +907,62 @@ mod tests {
         );
         // mlock has no underscores, should stay as --mlock
         assert!(args.contains(&"--mlock".to_string()));
+    }
+
+    #[test]
+    fn test_build_args_flash_attn_gets_explicit_value() {
+        let manager = ServiceManager::new();
+        let mut params = HashMap::new();
+        params.insert("flash-attn".to_string(), serde_json::json!(true));
+        let config = ServiceConfig {
+            id: "test".to_string(),
+            name: "test".to_string(),
+            model_path: "/test.gguf".to_string(),
+            parameters: params,
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+            last_started_at: None,
+        };
+        let args = manager.build_args(&config);
+        // `--flash-attn` requires an explicit value, otherwise llama.cpp swallows
+        // the next argument (e.g. `--flash-attn --presence-penalty`).
+        assert_eq!(args, vec!["--flash-attn", "on"]);
+    }
+
+    #[test]
+    fn test_build_args_flash_attn_disabled_emits_nothing() {
+        let manager = ServiceManager::new();
+        let mut params = HashMap::new();
+        params.insert("flash-attn".to_string(), serde_json::json!(false));
+        let config = ServiceConfig {
+            id: "test".to_string(),
+            name: "test".to_string(),
+            model_path: "/test.gguf".to_string(),
+            parameters: params,
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+            last_started_at: None,
+        };
+        let args = manager.build_args(&config);
+        assert!(args.is_empty(), "Disabled flash-attn should emit no flag");
+    }
+
+    #[test]
+    fn test_build_args_numa_gets_explicit_value() {
+        let manager = ServiceManager::new();
+        let mut params = HashMap::new();
+        params.insert("numa".to_string(), serde_json::json!(true));
+        let config = ServiceConfig {
+            id: "test".to_string(),
+            name: "test".to_string(),
+            model_path: "/test.gguf".to_string(),
+            parameters: params,
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+            last_started_at: None,
+        };
+        let args = manager.build_args(&config);
+        assert_eq!(args, vec!["--numa", "distribute"]);
     }
 
     #[test]
