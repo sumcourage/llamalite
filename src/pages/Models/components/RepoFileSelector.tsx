@@ -9,11 +9,13 @@ import {
   Spin,
   Empty,
   message,
+  Checkbox,
 } from 'antd';
 import {
   DownloadOutlined,
   FileOutlined,
   CheckCircleOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import type { RepoFile } from '../../../types';
 import { useModelStore } from '../../../stores/modelStore';
@@ -24,8 +26,18 @@ interface RepoFileSelectorProps {
   open: boolean;
   repoId: string;
   onClose: () => void;
-  onDownload: (repoId: string, filename: string) => void;
+  onDownload: (repoId: string, filename: string, companionFilename?: string) => void;
   downloading?: boolean;
+}
+
+/**
+ * A multimodal projector (mmproj) is a separate GGUF file that vision models
+ * need in order to accept image input. It is not a model itself, so it must be
+ * excluded from the model list and offered as a companion download instead.
+ */
+export function isMmprojFile(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return lower.endsWith('.gguf') && lower.includes('mmproj');
 }
 
 /** Quantization preference order for auto-recommendation. */
@@ -74,11 +86,13 @@ const RepoFileSelector: React.FC<RepoFileSelectorProps> = ({
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [actualRepoId, setActualRepoId] = useState('');
+  const [includeCompanion, setIncludeCompanion] = useState(true);
 
-  // Filter only .gguf files and sort by preference
+  // Filter only .gguf files and sort by preference (mmproj excluded — it is
+  // a companion projector, not a model).
   const ggufFiles = useMemo(() => {
     return files
-      .filter((f) => f.filename.toLowerCase().endsWith('.gguf'))
+      .filter((f) => f.filename.toLowerCase().endsWith('.gguf') && !isMmprojFile(f.filename))
       .sort((a, b) => {
         const qA = extractQuant(a.filename);
         const qB = extractQuant(b.filename);
@@ -90,6 +104,13 @@ const RepoFileSelector: React.FC<RepoFileSelectorProps> = ({
       });
   }, [files]);
 
+  // Multimodal projector files available in this repo (vision models).
+  const mmprojFiles = useMemo(
+    () => files.filter((f) => isMmprojFile(f.filename)),
+    [files],
+  );
+  const recommendedCompanion = mmprojFiles.length > 0 ? mmprojFiles[0].filename : null;
+
   // Auto-recommend the first (best) file
   const recommendedFile = ggufFiles.length > 0 ? ggufFiles[0].filename : null;
 
@@ -99,19 +120,24 @@ const RepoFileSelector: React.FC<RepoFileSelectorProps> = ({
 
     setSelectedFile(null);
     setFiles([]);
+    setIncludeCompanion(true);
     setLoadingFiles(true);
 
     const tryFetch = async (targetRepoId: string): Promise<RepoFile[]> => {
       const result = await listRepoFiles(targetRepoId);
-      // Filter to only keep .gguf files
-      const ggufFiles = result.filter((f) => f.filename.toLowerCase().endsWith('.gguf'));
+      // Filter to only keep .gguf files that are actual models (mmproj excluded)
+      const ggufFiles = result.filter(
+        (f) => f.filename.toLowerCase().endsWith('.gguf') && !isMmprojFile(f.filename),
+      );
       
       if (ggufFiles.length === 0 && !targetRepoId.toUpperCase().endsWith('-GGUF')) {
         // Try GGUF variant (e.g. "Qwen/Qwen2.5-0.5B-Instruct" -> "Qwen/Qwen2.5-0.5B-Instruct-GGUF")
         const ggufVariant = `${targetRepoId}-GGUF`;
         try {
           const ggufResult = await listRepoFiles(ggufVariant);
-          const ggufFilesInVariant = ggufResult.filter((f) => f.filename.toLowerCase().endsWith('.gguf'));
+          const ggufFilesInVariant = ggufResult.filter(
+            (f) => f.filename.toLowerCase().endsWith('.gguf') && !isMmprojFile(f.filename),
+          );
           if (ggufFilesInVariant.length > 0) {
             message.info(`已自动切换到 GGUF 仓库: ${ggufVariant}`);
             setActualRepoId(ggufVariant);
@@ -129,7 +155,7 @@ const RepoFileSelector: React.FC<RepoFileSelectorProps> = ({
       .then((result) => {
         setFiles(result);
         const gguf = result
-          .filter((f) => f.filename.toLowerCase().endsWith('.gguf'))
+          .filter((f) => f.filename.toLowerCase().endsWith('.gguf') && !isMmprojFile(f.filename))
           .sort((a, b) => {
             const qA = extractQuant(a.filename);
             const qB = extractQuant(b.filename);
@@ -155,7 +181,9 @@ const RepoFileSelector: React.FC<RepoFileSelectorProps> = ({
       message.warning('没有可下载的文件');
       return;
     }
-    onDownload(actualRepoId || repoId, filename);
+    const companion =
+      includeCompanion && recommendedCompanion ? recommendedCompanion : undefined;
+    onDownload(actualRepoId || repoId, filename, companion);
   };
 
   return (
@@ -192,7 +220,40 @@ const RepoFileSelector: React.FC<RepoFileSelectorProps> = ({
       ) : ggufFiles.length === 0 ? (
         <Empty description="该仓库中没有 .gguf 文件" />
       ) : (
-        <List
+        <>
+          {recommendedCompanion && (
+            <div
+              style={{
+                marginBottom: 12,
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(124, 58, 237, 0.35)',
+                background: 'rgba(124, 58, 237, 0.08)',
+              }}
+            >
+              <Checkbox
+                checked={includeCompanion}
+                onChange={(e) => setIncludeCompanion(e.target.checked)}
+              >
+                <Space size={6}>
+                  <EyeOutlined style={{ color: '#a78bfa' }} />
+                  <Text style={{ color: '#e2e8f0', fontSize: 13 }}>
+                    一并下载多模态投影器（视觉模型必需）
+                  </Text>
+                </Space>
+              </Checkbox>
+              <div style={{ marginTop: 4, marginLeft: 24 }}>
+                <Text style={{ color: '#94a3b8', fontSize: 12, wordBreak: 'break-all' }}>
+                  {recommendedCompanion}
+                  {mmprojFiles[0]?.size != null && ` · ${formatSize(mmprojFiles[0].size)}`}
+                </Text>
+                <div style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>
+                  该仓库包含 mmproj 文件，下载后可用于图片/OCR 识别。
+                </div>
+              </div>
+            </div>
+          )}
+          <List
           dataSource={ggufFiles}
           renderItem={(file, index) => {
             const quant = extractQuant(file.filename);
@@ -260,6 +321,7 @@ const RepoFileSelector: React.FC<RepoFileSelectorProps> = ({
           }}
           style={{ maxHeight: 400, overflow: 'auto' }}
         />
+        </>
       )}
     </Modal>
   );

@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import QuickServiceForm from '../../pages/Services/components/QuickServiceForm';
 import type { HardwareInfo, ParameterValues } from '../../types';
+
+const { invoke } = await import('@tauri-apps/api/core');
 
 const GB = 1024 * 1024 * 1024;
 
@@ -60,6 +62,7 @@ function renderForm(
 describe('QuickServiceForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(invoke).mockResolvedValue([]);
   });
 
   it('should apply scenario presets when a scenario is picked', () => {
@@ -113,5 +116,79 @@ describe('QuickServiceForm', () => {
     fireEvent.click(screen.getByText('需要更精细的控制？切换到高级配置'));
 
     expect(onSwitchToAdvanced).toHaveBeenCalledTimes(1);
+  });
+
+  it('选择视觉模型时一并回填 mmproj 路径', async () => {
+    vi.mocked(invoke).mockResolvedValue([
+      {
+        id: 'v1',
+        repo_id: 'ggml-org/Qwen2.5-VL-7B-Instruct-GGUF',
+        filename: 'Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+        local_path: '/models/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+        size_bytes: 4_500_000_000,
+        quantization: 'Q4_K_M',
+        downloaded_at: '2026-01-03',
+        metadata: {
+          description: null,
+          tags: ['downloaded'],
+          mmproj_path: '/models/mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf',
+        },
+      },
+    ]);
+
+    const { onModelPathChange } = renderForm();
+
+    const selector = document.querySelector('.ant-select-selector') as HTMLElement;
+    await waitFor(() => expect(selector).toBeTruthy());
+    fireEvent.mouseDown(selector);
+
+    const option = await waitFor(() => {
+      const el = document.querySelector('.ant-select-item-option') as HTMLElement | null;
+      if (!el) throw new Error('option not ready');
+      return el;
+    });
+    fireEvent.click(option);
+
+    await waitFor(() => {
+      expect(onModelPathChange).toHaveBeenCalledWith(
+        '/models/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+        '/models/mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf',
+      );
+    });
+  });
+
+  it('选择无 mmproj 的模型时清空 mmproj 路径', async () => {
+    vi.mocked(invoke).mockResolvedValue([
+      {
+        id: 't1',
+        repo_id: 'Qwen/Qwen2.5-7B-Instruct-GGUF',
+        filename: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf',
+        local_path: '/models/Qwen2.5-7B-Instruct-Q4_K_M.gguf',
+        size_bytes: 4_400_000_000,
+        quantization: 'Q4_K_M',
+        downloaded_at: '2026-01-03',
+        metadata: { description: null, tags: ['downloaded'] },
+      },
+    ]);
+
+    const { onModelPathChange } = renderForm();
+
+    const selector = document.querySelector('.ant-select-selector') as HTMLElement;
+    await waitFor(() => expect(selector).toBeTruthy());
+    fireEvent.mouseDown(selector);
+
+    const option = await waitFor(() => {
+      const el = document.querySelector('.ant-select-item-option') as HTMLElement | null;
+      if (!el) throw new Error('option not ready');
+      return el;
+    });
+    fireEvent.click(option);
+
+    await waitFor(() => {
+      expect(onModelPathChange).toHaveBeenCalledWith(
+        '/models/Qwen2.5-7B-Instruct-Q4_K_M.gguf',
+        '',
+      );
+    });
   });
 });

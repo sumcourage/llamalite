@@ -8,6 +8,8 @@ export interface LocalModel {
   downloadDate: string;
   description?: string;
   tags?: string[];
+  /** 多模态投影器（mmproj）本地路径，视觉模型需要它来接收图片输入。 */
+  mmprojPath?: string;
 }
 
 export interface DownloadLogEntry {

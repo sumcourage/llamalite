@@ -68,6 +68,16 @@ pub fn delete_model(app: AppHandle, id: String) -> Result<(), String> {
         }
     }
 
+    // Delete the companion multimodal projector (mmproj) if present
+    if let Some(mmproj) = &model.metadata.mmproj_path {
+        if !mmproj.trim().is_empty() {
+            let mmproj_path = std::path::Path::new(mmproj);
+            if mmproj_path.exists() {
+                let _ = fs::remove_file(mmproj_path);
+            }
+        }
+    }
+
     model_store::delete(&app, &id)
 }
 
@@ -95,6 +105,20 @@ fn pick_recommended_filename(files: &[String]) -> String {
         .unwrap_or_default()
 }
 
+/// Pick a multimodal projector (mmproj) file from a repo file list.
+///
+/// Vision models ship their projector as a separate `mmproj-*.gguf` file.
+/// Returns `None` when the repo contains no such file (text-only model).
+fn pick_companion_filename(files: &[String]) -> Option<String> {
+    files
+        .iter()
+        .find(|f| {
+            let lower = f.to_ascii_lowercase();
+            lower.ends_with(".gguf") && lower.contains("mmproj")
+        })
+        .cloned()
+}
+
 /// Get the models download directory.
 fn get_models_download_dir(app: &AppHandle) -> Result<String, String> {
     let settings = settings_store::load(app);
@@ -114,6 +138,7 @@ pub fn start_download(
     state: State<'_, PythonDownloadState>,
     repo_id: String,
     filename: String,
+    companion_filename: Option<String>,
 ) -> Result<String, String> {
     if repo_id.trim().is_empty() {
         return Err("下载失败：缺少仓库 ID (repoId)".to_string());
@@ -123,7 +148,7 @@ pub fn start_download(
     let model_id = uuid::Uuid::new_v4().to_string();
 
     // Resolve the filename to download
-    let (resolved_filename, actual_repo_id) = if filename.trim().is_empty() {
+    let (resolved_filename, actual_repo_id, auto_companion) = if filename.trim().is_empty() {
         // No filename provided — fetch real file list from ModelScope and pick the best one
         let try_repo = |repo: &str| -> Result<Vec<String>, String> {
             match list_repo_files(app.clone(), repo.to_string()) {
@@ -144,18 +169,26 @@ pub fn start_download(
         };
 
         match try_repo(&repo_id) {
-            Ok(gguf_files) => (pick_recommended_filename(&gguf_files), repo_id.clone()),
+            Ok(gguf_files) => (
+                pick_recommended_filename(&gguf_files),
+                repo_id.clone(),
+                pick_companion_filename(&gguf_files),
+            ),
             Err(_) => {
                 // Try GGUF variant: "Qwen/Qwen2.5-0.5B-Instruct" -> "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
                 let gguf_variant = format!("{}-GGUF", repo_id);
                 match try_repo(&gguf_variant) {
-                    Ok(gguf_files) => (pick_recommended_filename(&gguf_files), gguf_variant),
+                    Ok(gguf_files) => (
+                        pick_recommended_filename(&gguf_files),
+                        gguf_variant,
+                        pick_companion_filename(&gguf_files),
+                    ),
                     Err(_) => return Err("该仓库中没有找到 .gguf 文件".to_string()),
                 }
             }
         }
     } else {
-        (filename.trim().to_string(), repo_id.clone())
+        (filename.trim().to_string(), repo_id.clone(), None)
     };
 
     let local_filename = if resolved_filename.is_empty() {
@@ -178,6 +211,7 @@ pub fn start_download(
         metadata: crate::models::model::ModelMetadata {
             description: None,
             tags: vec!["downloading".to_string()],
+            mmproj_path: None,
         },
     };
 
@@ -205,10 +239,16 @@ pub fn start_download(
         resolved_filename
     };
     let l_dir = local_dir.clone();
+    // Prefer an explicitly selected companion; otherwise fall back to the
+    // mmproj file auto-detected from the repo file list.
+    let companion = companion_filename
+        .or(auto_companion)
+        .map(|c| c.trim().to_string())
+        .filter(|c| !c.is_empty() && !c.eq_ignore_ascii_case(&f_name));
 
     tauri::async_runtime::spawn(async move {
         if let Err(e) =
-            run_python_download(app_clone.clone(), state_inner, m_id.clone(), r_id.clone(), f_name.clone(), l_dir.clone()).await
+            run_python_download(app_clone.clone(), state_inner, m_id.clone(), r_id.clone(), f_name.clone(), l_dir.clone(), companion).await
         {
             let err_payload = serde_json::json!({
                 "modelId": m_id,
@@ -240,6 +280,7 @@ async fn run_python_download(
     repo_id: String,
     filename: String,
     local_dir: String,
+    companion: Option<String>,
 ) -> Result<(), String> {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
     use tokio::process::Command;
@@ -279,6 +320,11 @@ async fn run_python_download(
         // Pass filename as named arg
         if !filename.is_empty() && filename != "*.gguf" {
             cmd.arg("--filename").arg(&filename);
+        }
+
+        // Pass companion file (mmproj for vision models) as named arg
+        if let Some(ref comp) = companion {
+            cmd.arg("--companion").arg(comp);
         }
 
         let child = cmd
@@ -407,6 +453,13 @@ async fn run_python_download(
                                 if fname.contains(q) {
                                     model.quantization = Some(q.to_string());
                                     break;
+                                }
+                            }
+                            // Record the multimodal projector path if a companion
+                            // file was downloaded alongside this model.
+                            if let Some(comp) = obj.get("companionPath").and_then(|v| v.as_str()) {
+                                if !comp.trim().is_empty() {
+                                    model.metadata.mmproj_path = Some(comp.trim().to_string());
                                 }
                             }
                             let _ = model_store::save(&app_read, &model);
@@ -1261,5 +1314,41 @@ mod tests {
     fn test_pick_recommended_filename_no_gguf() {
         let files: Vec<String> = vec![];
         assert_eq!(pick_recommended_filename(&files), "");
+    }
+
+    #[test]
+    fn test_pick_companion_filename_finds_mmproj() {
+        let files = vec![
+            "Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf".to_string(),
+            "mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf".to_string(),
+        ];
+        assert_eq!(
+            pick_companion_filename(&files),
+            Some("mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_pick_companion_filename_case_insensitive() {
+        let files = vec!["MMPROJ-model-f16.GGUF".to_string()];
+        assert_eq!(
+            pick_companion_filename(&files),
+            Some("MMPROJ-model-f16.GGUF".to_string())
+        );
+    }
+
+    #[test]
+    fn test_pick_companion_filename_none_for_text_model() {
+        let files = vec![
+            "Qwen2.5-7B-Instruct-Q4_K_M.gguf".to_string(),
+            "Qwen2.5-7B-Instruct-Q8_0.gguf".to_string(),
+        ];
+        assert_eq!(pick_companion_filename(&files), None);
+    }
+
+    #[test]
+    fn test_pick_companion_filename_ignores_non_gguf() {
+        let files = vec!["mmproj-model.pt".to_string(), "config.json".to_string()];
+        assert_eq!(pick_companion_filename(&files), None);
     }
 }

@@ -8,11 +8,17 @@ ModelScope does not expose a pause/resume API or reliable progress callback.
 
 Usage:
     python download_model.py <repo_id> <local_dir> [--filename NAME] [--token TOKEN]
+                             [--companion NAME]
 
 Protocol:
     - stdout: JSON lines with log/complete/error messages
     - stderr: ModelScope internal logs (forwarded to UI by Rust backend)
     - Exit code: 0 for success, non-zero for failure
+
+Companion files:
+    Vision models (OCR, image understanding) require a separate multimodal
+    projector (mmproj) file. When --companion is given, it is downloaded
+    after the main file and its local path is reported via companionPath.
 """
 
 import sys
@@ -48,9 +54,15 @@ def send_log(message: str, repo_id: str, level: str = "info", local_path: str = 
     send_message("log", repo_id, message=message, level=level, localPath=local_path)
 
 
-def send_complete(repo_id: str, path: str, local_path: str = ""):
+def send_complete(repo_id: str, path: str, local_path: str = "", companion_path: str = ""):
     """Send a completion message."""
-    send_message("complete", repo_id, path=path, localPath=local_path or path)
+    send_message(
+        "complete",
+        repo_id,
+        path=path,
+        localPath=local_path or path,
+        companionPath=companion_path,
+    )
 
 
 def send_error(repo_id: str, error: str, local_path: str = ""):
@@ -167,6 +179,11 @@ def main():
     parser.add_argument("local_dir", help="Local directory to save the model")
     parser.add_argument("--token", default=None, help="ModelScope access token")
     parser.add_argument("--filename", default=None, help="Specific filename to download")
+    parser.add_argument(
+        "--companion",
+        default=None,
+        help="Companion file (e.g. mmproj-*.gguf) to download after the main file",
+    )
 
     args = parser.parse_args()
 
@@ -213,7 +230,58 @@ def main():
 
             print(f"[download] File saved: {result}", file=sys.stderr, flush=True)
             send_log(f"文件已保存: {result}", repo_id, "success", local_path=local_dir)
-            send_complete(repo_id, result, local_path=local_dir)
+
+            # ── Companion file (e.g. mmproj for vision models) ──
+            companion_result = ""
+            if args.companion and args.companion != args.filename:
+                send_log(
+                    f"开始下载配套文件: {args.companion}",
+                    repo_id, "info", local_path=local_dir,
+                )
+                print(
+                    f"[download] Companion: {args.companion}",
+                    file=sys.stderr, flush=True,
+                )
+
+                def do_companion():
+                    return model_file_download(
+                        model_id=repo_id,
+                        file_path=args.companion,
+                        local_dir=local_dir,
+                        token=args.token,
+                    )
+
+                try:
+                    companion_result = download_with_retry(
+                        do_companion, repo_id, local_dir
+                    )
+                    print(
+                        f"[download] Companion saved: {companion_result}",
+                        file=sys.stderr, flush=True,
+                    )
+                    send_log(
+                        f"配套文件已保存: {companion_result}",
+                        repo_id, "success", local_path=local_dir,
+                    )
+                except Exception as e:
+                    # Main model is already downloaded — report the companion
+                    # failure as a warning and still complete, so the user keeps
+                    # a usable (text-only) model instead of losing everything.
+                    print(
+                        f"[download] Companion failed: {e}",
+                        file=sys.stderr, flush=True,
+                    )
+                    send_log(
+                        f"配套文件下载失败: {e}",
+                        repo_id, "warning", local_path=local_dir,
+                    )
+                    companion_result = ""
+
+            send_complete(
+                repo_id, result,
+                local_path=local_dir,
+                companion_path=companion_result or "",
+            )
         else:
             # ── Repository (snapshot) download ──
             send_log(f"开始下载仓库: {repo_id}", repo_id, local_path=local_dir)

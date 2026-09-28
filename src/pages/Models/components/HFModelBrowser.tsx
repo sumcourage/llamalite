@@ -164,12 +164,12 @@ const HFModelBrowser: React.FC = () => {
     setSelectorOpen(true);
   };
 
-  const handleFileSelected = async (repoId: string, filename: string) => {
+  const handleFileSelected = async (repoId: string, filename: string, companionFilename?: string) => {
     if (downloading) return; // Prevent duplicate submissions
     setDownloading(true);
     try {
       message.loading({ content: '开始下载...', key: repoId });
-      await startDownload(repoId, filename);
+      await startDownload(repoId, filename, companionFilename);
       message.success({ content: `正在下载 ${filename}`, key: repoId });
       setSelectorOpen(false);
     } catch (err) {

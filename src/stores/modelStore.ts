@@ -10,7 +10,7 @@ interface ModelState {
 
   fetchLocalModels: () => Promise<void>;
   deleteModel: (id: string) => Promise<void>;
-  startDownload: (repoId: string, filename?: string) => Promise<string>;
+  startDownload: (repoId: string, filename?: string, companionFilename?: string) => Promise<string>;
   cancelDownload: (modelId: string) => Promise<void>;
   deleteFailedDownload: (modelId: string) => Promise<void>;
   dismissDownload: (modelId: string) => void;
@@ -48,6 +48,11 @@ function mapLocalModelFromRust(raw: Record<string, unknown>): LocalModel {
     tags: Array.isArray((raw.metadata as Record<string, unknown> | undefined)?.tags)
       ? (raw.metadata as Record<string, unknown>).tags as string[]
       : undefined,
+    mmprojPath: (() => {
+      const meta = raw.metadata as Record<string, unknown> | undefined;
+      const value = meta?.mmproj_path ?? meta?.mmprojPath ?? raw.mmproj_path;
+      return typeof value === 'string' && value.length > 0 ? value : undefined;
+    })(),
   };
 }
 
@@ -92,7 +97,7 @@ export const useModelStore = create<ModelState>((set, get) => ({
     }
   },
 
-  startDownload: async (repoId, filename) => {
+  startDownload: async (repoId, filename, companionFilename) => {
     set({ error: null });
     if (!repoId || !repoId.trim()) {
       const err = new Error('下载模型失败：缺少仓库 ID (repoId)');
@@ -119,6 +124,7 @@ export const useModelStore = create<ModelState>((set, get) => ({
       const modelId = await invoke<string>('start_download', {
         repoId: trimmedRepoId,
         filename: (filename ?? '').trim(),
+        companionFilename: (companionFilename ?? '').trim() || null,
       });
 
       if (!modelId || typeof modelId !== 'string') {

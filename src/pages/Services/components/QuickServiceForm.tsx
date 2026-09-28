@@ -50,7 +50,7 @@ interface QuickServiceFormProps {
   serviceName: string;
   onServiceNameChange: (name: string) => void;
   modelPath: string;
-  onModelPathChange: (path: string) => void;
+  onModelPathChange: (path: string, mmprojPath?: string) => void;
   values: ParameterValues;
   onChange: (values: ParameterValues) => void;
   hardwareInfo: HardwareInfo | null;
@@ -144,13 +144,15 @@ const QuickServiceForm: React.FC<QuickServiceFormProps> = ({
 
   const handleModelSelect = useCallback(
     (path: string) => {
-      onModelPathChange(path);
+      // 本地视觉模型自带 mmproj 投影器，选中后自动回填 --mmproj
+      const model = localModels.find((item) => item.path === path);
+      onModelPathChange(path, model ? model.mmprojPath ?? '' : undefined);
       if (!serviceName.trim()) {
         const filename = path.split(/[\\/]/).pop() || '';
         onServiceNameChange(filename.replace(/\.gguf$/i, ''));
       }
     },
-    [onModelPathChange, onServiceNameChange, serviceName],
+    [onModelPathChange, onServiceNameChange, serviceName, localModels],
   );
 
   const hasGpu = (hardwareInfo?.gpuInfo?.length ?? 0) > 0;

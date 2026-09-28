@@ -108,9 +108,12 @@ export function useModelDownload() {
     fetchLocalModels();
   }, [fetchLocalModels]);
 
-  const handleDownload = useCallback(async (repoId: string, filename?: string) => {
-    await startDownload(repoId, filename);
-  }, [startDownload]);
+  const handleDownload = useCallback(
+    async (repoId: string, filename?: string, companionFilename?: string) => {
+      await startDownload(repoId, filename, companionFilename);
+    },
+    [startDownload],
+  );
 
   const handleCancel = useCallback(async (modelId: string) => {
     await cancelDownload(modelId);

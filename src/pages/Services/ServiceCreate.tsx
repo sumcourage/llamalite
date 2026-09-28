@@ -9,10 +9,12 @@ import {
 } from '@ant-design/icons';
 import { useParameterValidation } from '../../hooks/useParameterValidation';
 import { useServiceStore } from '../../stores/serviceStore';
+import { useModelStore } from '../../stores/modelStore';
 import { useHardwareInfo } from '../../hooks/useHardwareInfo';
 import ParameterForm from './components/ParameterForm';
 import QuickServiceForm from './components/QuickServiceForm';
 import { buildHardwareDefaults } from '../../constants/servicePresets';
+import { findMmprojForModel } from '../../utils/mmproj';
 import type { HardwareProfile } from '../../constants/servicePresets';
 import type { ParameterValues } from '../../types';
 
@@ -26,6 +28,7 @@ const ServiceCreate: React.FC = () => {
   const isEditMode = Boolean(id);
   const { validateAll, mergeStoredValues } = useParameterValidation();
   const { services, fetchServices } = useServiceStore();
+  const { localModels, fetchLocalModels } = useModelStore();
   const { hardwareInfo, loading: hardwareLoading, formatMemory } = useHardwareInfo();
 
   // 新建服务默认走快速配置；编辑已有服务默认保留高级配置，避免误改已调好的参数
@@ -90,10 +93,26 @@ const ServiceCreate: React.FC = () => {
     setParameterValues(next);
   }, []);
 
-  const handleModelPathChange = useCallback((path: string) => {
+  // 本地模型自带的多模态投影器（mmproj）。视觉模型必须带上它才能接收图片输入。
+  // 统一按路径查找，使下拉选择、手动选文件、高级模式三条路径都能自动回填。
+  const findMmproj = useCallback(
+    (path: string) => findMmprojForModel(localModels, path),
+    [localModels],
+  );
+
+  useEffect(() => {
+    fetchLocalModels();
+  }, [fetchLocalModels]);
+
+  const handleModelPathChange = useCallback((path: string, mmprojPath?: string) => {
     setModelPath(path);
-    handleParameterChange({ ...valuesRef.current, model: path });
-  }, [handleParameterChange]);
+    const next: ParameterValues = { ...valuesRef.current, model: path };
+    // 调用方显式传入时优先使用；否则按路径查找本地模型自带的投影器。
+    // 换模型后清掉旧的 mmproj，避免残留指向另一个模型的投影器。
+    const resolved = mmprojPath !== undefined ? mmprojPath : findMmproj(path);
+    next.mmproj = resolved || undefined;
+    handleParameterChange(next);
+  }, [findMmproj, handleParameterChange]);
 
   // Load existing service data in edit mode
   useEffect(() => {
@@ -135,6 +154,16 @@ const ServiceCreate: React.FC = () => {
     loadService();
   }, [id, isEditMode]);
 
+  // 编辑已有服务时，历史配置可能没带上 mmproj（早期版本不会自动回填）。
+  // 本地模型信息就绪后自动补上，保存一次即可修复。
+  useEffect(() => {
+    if (!isEditMode || !modelPath || localModels.length === 0) return;
+    if (valuesRef.current.mmproj) return;
+    const mmproj = findMmproj(modelPath);
+    if (!mmproj) return;
+    handleParameterChange({ ...valuesRef.current, mmproj });
+  }, [isEditMode, modelPath, localModels, findMmproj, handleParameterChange]);
+
   const handleFileSelect = useCallback(async (key: string) => {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
@@ -145,14 +174,16 @@ const ServiceCreate: React.FC = () => {
       });
       if (selected && typeof selected === 'string') {
         if (key === 'model') {
-          setModelPath(selected);
+          // 走统一入口，顺带按路径回填 mmproj
+          handleModelPathChange(selected);
+          return;
         }
         handleParameterChange({ ...valuesRef.current, [key]: selected });
       }
     } catch (err) {
       console.error('File dialog error:', err);
     }
-  }, [handleParameterChange]);
+  }, [handleModelPathChange, handleParameterChange]);
 
   const handleModelPathSelect = useCallback(async () => {
     try {

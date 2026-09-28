@@ -188,6 +188,25 @@ describe('useModelDownload', () => {
       expect(mockStartDownload).toHaveBeenCalledWith(
         'Qwen/Qwen2.5-7B-Instruct-GGUF',
         '/models',
+        undefined,
+      );
+    });
+
+    it('handleDownload should forward companionFilename', async () => {
+      const { result } = renderHook(() => useModelDownload());
+
+      await act(async () => {
+        await result.current.startDownload(
+          'ggml-org/Qwen2.5-VL-7B-Instruct-GGUF',
+          'Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+          'mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf',
+        );
+      });
+
+      expect(mockStartDownload).toHaveBeenCalledWith(
+        'ggml-org/Qwen2.5-VL-7B-Instruct-GGUF',
+        'Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+        'mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf',
       );
     });
 

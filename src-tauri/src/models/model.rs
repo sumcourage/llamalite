@@ -16,6 +16,10 @@ pub struct LocalModel {
 pub struct ModelMetadata {
     pub description: Option<String>,
     pub tags: Vec<String>,
+    /// Local path of the multimodal projector downloaded alongside this model.
+    /// Vision models (OCR, image understanding) need it to accept image input.
+    #[serde(default)]
+    pub mmproj_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +47,7 @@ mod tests {
         let metadata = ModelMetadata {
             description: Some("A test model".to_string()),
             tags: vec!["chat".to_string(), "test".to_string()],
+            mmproj_path: None,
         };
         let model = LocalModel {
             id: "test-id-123".to_string(),
@@ -63,6 +68,7 @@ mod tests {
         assert_eq!(model.downloaded_at, "2024-01-01 12:00:00");
         assert!(model.metadata.description.is_some());
         assert_eq!(model.metadata.tags.len(), 2);
+        assert!(model.metadata.mmproj_path.is_none());
     }
 
     #[test]
@@ -70,6 +76,7 @@ mod tests {
         let metadata = ModelMetadata {
             description: None,
             tags: vec![],
+            mmproj_path: None,
         };
         let model = LocalModel {
             id: "test-id".to_string(),
@@ -92,10 +99,15 @@ mod tests {
         let metadata = ModelMetadata {
             description: Some("A description".to_string()),
             tags: vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()],
+            mmproj_path: Some("/path/to/mmproj.gguf".to_string()),
         };
         assert_eq!(metadata.description, Some("A description".to_string()));
         assert_eq!(metadata.tags.len(), 3);
         assert!(metadata.tags.contains(&"tag1".to_string()));
+        assert_eq!(
+            metadata.mmproj_path,
+            Some("/path/to/mmproj.gguf".to_string())
+        );
     }
 
     #[test]
@@ -154,6 +166,7 @@ mod tests {
             metadata: ModelMetadata {
                 description: Some("desc".to_string()),
                 tags: vec!["a".to_string()],
+                mmproj_path: Some("/path/to/mmproj.gguf".to_string()),
             },
         };
         let json = serde_json::to_string(&model).unwrap();
@@ -167,6 +180,17 @@ mod tests {
             deserialized.metadata.description,
             model.metadata.description
         );
+        assert_eq!(deserialized.metadata.mmproj_path, model.metadata.mmproj_path);
+    }
+
+    #[test]
+    fn test_model_metadata_deserializes_without_mmproj_path() {
+        // Old records written before mmproj_path existed must still deserialize.
+        let json = r#"{"description":"old","tags":["chat"]}"#;
+        let metadata: ModelMetadata = serde_json::from_str(json).unwrap();
+        assert_eq!(metadata.description, Some("old".to_string()));
+        assert_eq!(metadata.tags, vec!["chat".to_string()]);
+        assert!(metadata.mmproj_path.is_none());
     }
 
     #[test]

@@ -101,6 +101,39 @@ describe('useModelStore', () => {
       expect(state.localModels[0].size).toBe(4_500_000_000);
     });
 
+    it('should map metadata.mmproj_path to mmprojPath', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce([
+        {
+          id: 'vision-1',
+          repo_id: 'ggml-org/Qwen2.5-VL-7B-Instruct-GGUF',
+          filename: 'Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+          local_path: '/models/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+          size_bytes: 4_500_000_000,
+          quantization: 'Q4_K_M',
+          downloaded_at: '2026-01-03',
+          metadata: {
+            description: null,
+            tags: ['downloaded'],
+            mmproj_path: '/models/mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf',
+          },
+        },
+      ]);
+
+      await useModelStore.getState().fetchLocalModels();
+
+      expect(useModelStore.getState().localModels[0].mmprojPath).toBe(
+        '/models/mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf'
+      );
+    });
+
+    it('should leave mmprojPath undefined when no projector exists', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce(mockLocalModelsRust);
+
+      await useModelStore.getState().fetchLocalModels();
+
+      expect(useModelStore.getState().localModels[0].mmprojPath).toBeUndefined();
+    });
+
     it('should gracefully handle partial/empty backend payloads', async () => {
       const partial = [{ id: 'half' }]; // missing most fields
       vi.mocked(invoke).mockResolvedValueOnce(partial);
@@ -175,6 +208,7 @@ describe('useModelStore', () => {
       expect(vi.mocked(invoke)).toHaveBeenCalledWith('start_download', {
         repoId: 'Qwen/Qwen2.5-7B-Instruct-GGUF',
         filename: 'qwen2.5-7b-q4_k_m.gguf',
+        companionFilename: null,
       });
 
       // Progress map should now have a placeholder for the returned modelId.
@@ -185,6 +219,22 @@ describe('useModelStore', () => {
       expect(prog.logs).toEqual([]);
     });
 
+    it('should pass companionFilename when a projector file is selected', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce('vision-model-id');
+
+      await useModelStore.getState().startDownload(
+        'ggml-org/Qwen2.5-VL-7B-Instruct-GGUF',
+        'Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+        'mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf'
+      );
+
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith('start_download', {
+        repoId: 'ggml-org/Qwen2.5-VL-7B-Instruct-GGUF',
+        filename: 'Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf',
+        companionFilename: 'mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf',
+      });
+    });
+
     it('should trim empty filename (user did not pick a specific file)', async () => {
       vi.mocked(invoke).mockResolvedValueOnce('placeholder-id');
       await useModelStore.getState().startDownload('Qwen/Qwen2.5-7B', '  ');
@@ -192,6 +242,7 @@ describe('useModelStore', () => {
       expect(vi.mocked(invoke)).toHaveBeenCalledWith('start_download', {
         repoId: 'Qwen/Qwen2.5-7B',
         filename: '',
+        companionFilename: null,
       });
     });
 
