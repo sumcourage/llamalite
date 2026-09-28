@@ -12,3 +12,5 @@ __pycache__/
 src-tauri/gen/schemas/
 *.log
 .DS_Store
+headroom_memory.db
+_site/

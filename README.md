@@ -6,6 +6,8 @@ Llamalite helps you download GGUF models from [ModelScope](https://modelscope.cn
 
 > 中文说明见 [README.zh-CN.md](./README.zh-CN.md)
 
+Website: <https://sumcourage.github.io/llamalite/>
+
 ## Features
 
 - **Dashboard** — overview of service status, local model count / total size, and quick actions (start / stop / restart / open Web UI).
@@ -45,6 +47,7 @@ llamalite/
 │   │   ├── sidecar/      # llama-server process manager (start/stop/log streaming)
 │   │   └── storage/      # JSON file persistence (service/model/settings stores, catalog cache)
 │   └── python/           # ModelScope helper scripts (search, download, list, cleanup)
+├── website/              # Project landing page (deployed to GitHub Pages)
 ├── llamalite-manual-zh/  # User manual (Chinese)
 ├── llamalite-manual-en/  # User manual (English)
 └── package.json
@@ -105,8 +108,12 @@ A consistency test (`src/__tests__/version-sync.test.ts`) fails whenever any of 
 
 ## User Manual
 
-- 中文用户手册: [llamalite-manual-zh/llamalite-manual-zh.html](llamalite-manual-zh/llamalite-manual-zh.html)
-- English User Manual: [llamalite-manual-en/llamalite-manual-en.html](llamalite-manual-en/llamalite-manual-en.html)
+- 中文用户手册: [llamalite-manual-zh/llamalite-manual-zh.html](llamalite-manual-zh/llamalite-manual-zh.html) · [在线版](https://sumcourage.github.io/llamalite/manual/zh/)
+- English User Manual: [llamalite-manual-en/llamalite-manual-en.html](llamalite-manual-en/llamalite-manual-en.html) · [online](https://sumcourage.github.io/llamalite/manual/en/)
+
+## Website
+
+The project site is [`website/index.html`](./website/index.html), published at <https://sumcourage.github.io/llamalite/> together with both manuals under `/manual/zh/` and `/manual/en/`. The [`pages.yml`](./.github/workflows/pages.yml) workflow assembles the three into a single artifact and deploys it to GitHub Pages whenever `website/`, either manual, or `package.json` changes on `main`. The version label on the page is injected from `package.json` at deploy time, so it never drifts.
 
 ## License
 

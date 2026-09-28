@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Llamalite — 本地大模型服务管理器</title>
+<meta name="description" content="Llamalite 是一个基于 Tauri 2 与 llama.cpp 的跨平台桌面应用，帮你从 ModelScope 下载 GGUF 模型、可视化配置并一键启动 llama-server，全程无需命令行。">
+<meta name="theme-color" content="#0c0c18">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Llamalite — 本地大模型服务管理器">
+<meta property="og:description" content="下载 GGUF 模型、配置并启动 llama-server，全程无需命令行。基于 Tauri 2 + llama.cpp。">
+<meta property="og:url" content="https://sumcourage.github.io/llamalite/">
+<style>
+:root {
+  --bg: #0c0c18;
+  --bg2: #151528;
+  --bg3: #1c1c35;
+  --ink: #e2e8f0;
+  --muted: #8b92a8;
+  --rule: #2a2a45;
+  --accent: #7c3aed;
+  --accent2: #a78bfa;
+  --accent-glow: rgba(124, 58, 237, 0.15);
+  --success: #34d399;
+  --warn: #f59e0b;
+  --info: #60a5fa;
+  --maxw: 1120px;
+  --radius: 14px;
+  --nav-h: 62px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+@font-face {
+  font-family: 'SystemSans';
+  src: local('Microsoft YaHei'), local('PingFang SC'), local('Noto Sans CJK SC'), local('Segoe UI'), local('Helvetica Neue'), local('Arial');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'SystemSans';
+  src: local('Microsoft YaHei Bold'), local('PingFang SC Semibold'), local('Noto Sans CJK SC Bold'), local('Segoe UI Bold');
+  font-weight: 700;
+}
+@font-face {
+  font-family: 'SystemMono';
+  src: local('JetBrains Mono'), local('Cascadia Code'), local('Fira Code'), local('Consolas'), local('monospace');
+}
+
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--nav-h) + 20px); }
+
+body {
+  font-family: 'SystemSans', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent2); outline-offset: 3px; border-radius: 4px; }
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+.skip {
+  position: absolute; left: -9999px; top: 0; z-index: 200;
+  background: var(--accent); color: #fff; padding: 10px 16px; border-radius: 0 0 8px 0;
+}
+.skip:focus { left: 0; }
+
+/* ── Nav ─────────────────────────────────────────── */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: var(--nav-h);
+  background: rgba(12, 12, 24, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--rule);
+}
+.nav-in { height: 100%; display: flex; align-items: center; gap: 20px; }
+.brand {
+  display: flex; align-items: center; gap: 9px;
+  font-weight: 700; font-size: 1.02rem; letter-spacing: 0.01em;
+  text-decoration: none; color: var(--ink); white-space: nowrap;
+}
+.brand-mark {
+  width: 26px; height: 26px; border-radius: 8px; flex: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow: 0 0 16px var(--accent-glow);
+  display: grid; place-items: center;
+}
+.brand-mark svg { width: 15px; height: 15px; }
+.nav-links { display: flex; gap: 4px; margin-left: 14px; }
+.nav-links a {
+  color: var(--muted); text-decoration: none; font-size: 0.86rem;
+  padding: 7px 12px; border-radius: 8px; transition: color .2s, background .2s;
+}
+.nav-links a:hover { color: var(--ink); background: var(--accent-glow); }
+.nav-act { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 17px; border-radius: 9px; border: 1px solid transparent;
+  font-size: 0.87rem; font-weight: 700; text-decoration: none;
+  cursor: pointer; white-space: nowrap; transition: all .2s;
+}
+.btn-primary {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
+.btn-primary:hover { background: #6d28d9; transform: translateY(-1px); box-shadow: 0 6px 26px rgba(124,58,237,.35); }
+.btn-ghost { border-color: var(--rule); color: var(--ink); background: transparent; }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent2); background: var(--accent-glow); }
+.lang {
+  background: transparent; border: 1px solid var(--rule); color: var(--muted);
+  font-family: inherit; font-size: 0.78rem; font-weight: 700;
+  padding: 7px 11px; border-radius: 8px; cursor: pointer; transition: all .2s;
+}
+.lang:hover { color: var(--accent2); border-color: var(--accent); }
+
+/* ── Hero ────────────────────────────────────────── */
+.hero { position: relative; padding: calc(var(--nav-h) + 78px) 0 70px; text-align: center; }
+.hero::before {
+  content: ''; position: absolute; left: 50%; top: 0; width: 100vw; height: 74vh;
+  transform: translateX(-50%); z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(58% 52% at 50% 0%, rgba(124,58,237,.30), transparent 72%),
+    radial-gradient(38% 38% at 82% 16%, rgba(96,165,250,.16), transparent 72%),
+    radial-gradient(38% 38% at 18% 10%, rgba(167,139,250,.15), transparent 72%);
+}
+.hero::after {
+  content: ''; position: absolute; left: 50%; top: 0; width: 100vw; height: 74vh;
+  transform: translateX(-50%); z-index: -1; pointer-events: none; opacity: .35;
+  background-image:
+    linear-gradient(var(--rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+  background-size: 62px 62px;
+  mask-image: radial-gradient(60% 55% at 50% 12%, #000, transparent 78%);
+  -webkit-mask-image: radial-gradient(60% 55% at 50% 12%, #000, transparent 78%);
+}
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--rule); background: var(--bg2);
+  border-radius: 999px; padding: 5px 14px 5px 6px;
+  font-size: 0.76rem; color: var(--muted); letter-spacing: 0.03em;
+}
+.pill b {
+  background: var(--accent-glow); color: var(--accent2);
+  border-radius: 999px; padding: 2px 10px; font-weight: 700;
+}
+.hero h1 {
+  margin: 26px auto 0; max-width: 15em;
+  font-size: clamp(2.05rem, 5.4vw, 3.5rem); line-height: 1.24;
+  font-weight: 700; letter-spacing: -0.015em;
+}
+.hero h1 em {
+  font-style: normal;
+  background: linear-gradient(100deg, var(--accent2), var(--info));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero p.lede {
+  margin: 22px auto 0; max-width: 44em;
+  color: var(--muted); font-size: 1.02rem; line-height: 1.85;
+}
+.hero-act { margin-top: 34px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn-lg { padding: 13px 26px; font-size: 0.95rem; border-radius: 11px; }
+.ver-chip {
+  margin-top: 20px; display: inline-flex; align-items: center; gap: 7px;
+  font-family: 'SystemMono', monospace; font-size: 0.74rem; color: var(--muted);
+}
+.ver-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+/* ── Stylised app preview ────────────────────────── */
+.preview { margin: 62px auto 0; max-width: 900px; }
+.mock {
+  border: 1px solid var(--rule); border-radius: 16px; overflow: hidden;
+  background: var(--bg2);
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,.85), 0 0 0 1px rgba(124,58,237,.07);
+}
+.mock-bar {
+  display: flex; align-items: center; gap: 7px;
+  padding: 11px 15px; background: var(--bg3); border-bottom: 1px solid var(--rule);
+}
+.mock-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); }
+.mock-bar i:nth-child(1) { background: #ff5f57; }
+.mock-bar i:nth-child(2) { background: #febc2e; }
+.mock-bar i:nth-child(3) { background: #28c840; }
+.mock-bar span { margin-left: 10px; font-size: 0.72rem; color: var(--muted); font-family: 'SystemMono', monospace; }
+.mock-body { display: flex; min-height: 300px; }
+.mock-side { width: 172px; flex: none; background: var(--bg3); border-right: 1px solid var(--rule); padding: 16px 13px; display: flex; flex-direction: column; gap: 9px; }
+.mock-side b { height: 10px; border-radius: 5px; background: var(--rule); display: block; }
+.mock-side b:first-child { background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 74%; }
+.mock-side b:nth-child(2) { width: 58%; }
+.mock-side b:nth-child(3) { width: 66%; }
+.mock-side b:nth-child(4) { width: 48%; }
+.mock-side b:nth-child(5) { width: 62%; }
+.mock-main { flex: 1; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.mock-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+.mock-card { border: 1px solid var(--rule); border-radius: 10px; padding: 13px; background: var(--bg); }
+.mock-card u { display: block; height: 8px; width: 46%; border-radius: 4px; background: var(--rule); text-decoration: none; }
+.mock-card s { display: block; height: 15px; width: 68%; border-radius: 4px; margin-top: 10px; text-decoration: none; background: linear-gradient(90deg, var(--accent2), var(--accent)); opacity: .8; }
+.mock-log { flex: 1; border: 1px solid var(--rule); border-radius: 10px; background: var(--bg); padding: 13px; display: flex; flex-direction: column; gap: 8px; }
+.mock-log u { display: block; height: 7px; border-radius: 4px; background: var(--rule); text-decoration: none; }
+.mock-log u:nth-child(1) { width: 62%; }
+.mock-log u:nth-child(2) { width: 44%; background: rgba(52,211,153,.4); }
+.mock-log u:nth-child(3) { width: 71%; }
+.mock-log u:nth-child(4) { width: 35%; background: rgba(96,165,250,.4); }
+.mock-log u:nth-child(5) { width: 55%; }
+.preview figcaption { margin-top: 14px; font-size: 0.75rem; color: var(--muted); text-align: center; opacity: .8; }
+
+/* ── Sections ────────────────────────────────────── */
+.section { padding: 88px 0; }
+.section + .section { border-top: 1px solid var(--rule); }
+.sec-head { max-width: 42em; }
+.sec-head .kicker {
+  font-family: 'SystemMono', monospace; font-size: 0.74rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--accent2);
+}
+.sec-head h2 { margin-top: 12px; font-size: clamp(1.5rem, 3.1vw, 2.05rem); line-height: 1.32; letter-spacing: -0.01em; }
+.sec-head p { margin-top: 14px; color: var(--muted); }
+
+/* Features */
+.grid-feat { margin-top: 46px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.feat {
+  border: 1px solid var(--rule); border-radius: var(--radius); padding: 24px 22px;
+  background: linear-gradient(180deg, var(--bg2), rgba(21,21,40,.4));
+  transition: border-color .22s, transform .22s;
+}
+.feat:hover { border-color: rgba(124,58,237,.5); transform: translateY(-3px); }
+.feat.wide { grid-column: span 2; }
+.feat-ico {
+  width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--accent-glow); border: 1px solid rgba(124,58,237,.28); color: var(--accent2);
+}
+.feat-ico svg { width: 19px; height: 19px; }
+.feat h3 { margin-top: 16px; font-size: 1rem; }
+.feat p { margin-top: 9px; color: var(--muted); font-size: 0.885rem; line-height: 1.78; }
+
+/* Steps */
+.steps { margin-top: 46px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: step; }
+.step { position: relative; border: 1px solid var(--rule); border-radius: var(--radius); padding: 26px 22px 22px; background: var(--bg2); }
+.step::before {
+  counter-increment: step; content: counter(step, decimal-leading-zero);
+  font-family: 'SystemMono', monospace; font-size: 0.78rem; font-weight: 700;
+  color: var(--accent2); letter-spacing: 0.08em;
+}
+.step h3 { margin-top: 12px; font-size: 1rem; }
+.step p { margin-top: 9px; color: var(--muted); font-size: 0.885rem; line-height: 1.78; }
+.step code { font-family: 'SystemMono', monospace; font-size: 0.82rem; color: var(--info); background: rgba(96,165,250,.09); padding: 1px 6px; border-radius: 5px; }
+
+/* Stack */
+.stack { margin-top: 46px; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+.stack-row { display: grid; grid-template-columns: 180px 1fr; gap: 20px; padding: 18px 24px; align-items: baseline; }
+.stack-row + .stack-row { border-top: 1px solid var(--rule); }
+.stack-row dt { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent2); font-family: 'SystemMono', monospace; }
+.stack-row dd { color: var(--muted); font-size: 0.885rem; }
+.stack-row dd b { color: var(--ink); font-weight: 700; }
+.stack-row dd i { font-style: normal; opacity: .45; margin: 0 6px; }
+
+/* Manual cards */
+.manual-grid { margin-top: 46px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.manual {
+  display: block; text-decoration: none; color: inherit;
+  border: 1px solid var(--rule); border-radius: var(--radius); padding: 26px 24px;
+  background: linear-gradient(180deg, var(--bg2), rgba(21,21,40,.4));
+  transition: border-color .22s, transform .22s;
+}
+.manual:hover { border-color: rgba(124,58,237,.5); transform: translateY(-3px); }
+.manual .tag { font-family: 'SystemMono', monospace; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.1em; }
+.manual h3 { margin-top: 12px; font-size: 1.06rem; }
+.manual p { margin-top: 9px; color: var(--muted); font-size: 0.885rem; }
+.manual .go { margin-top: 18px; display: inline-flex; align-items: center; gap: 7px; color: var(--accent2); font-size: 0.85rem; font-weight: 700; }
+.manual .go svg { width: 15px; height: 15px; transition: transform .22s; }
+.manual:hover .go svg { transform: translateX(3px); }
+
+/* Footer */
+.foot { border-top: 1px solid var(--rule); padding: 34px 0 44px; }
+.foot-in { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: center; justify-content: space-between; }
+.foot-in p { color: var(--muted); font-size: 0.82rem; }
+.foot-links { display: flex; gap: 20px; flex-wrap: wrap; }
+.foot-links a { color: var(--muted); text-decoration: none; font-size: 0.82rem; transition: color .2s; }
+.foot-links a:hover { color: var(--accent2); }
+
+/* Reveal */
+.rv { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+.rv.in { opacity: 1; transform: none; }
+
+@media (max-width: 900px) {
+  .nav-links { display: none; }
+  .grid-feat { grid-template-columns: repeat(2, 1fr); }
+  .feat.wide { grid-column: span 2; }
+  .steps { grid-template-columns: 1fr; }
+  .stack-row { grid-template-columns: 1fr; gap: 6px; }
+}
+@media (max-width: 620px) {
+  .section { padding: 62px 0; }
+  .grid-feat, .manual-grid { grid-template-columns: 1fr; }
+  .feat.wide { grid-column: span 1; }
+  .mock-side { display: none; }
+  .mock-cards { grid-template-columns: 1fr; }
+  .nav-act .btn-ghost { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  .rv { opacity: 1; transform: none; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main" data-zh="跳到主内容" data-en="Skip to content">跳到主内容</a>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="./">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v18M5.5 7.5v9M18.5 7.5v9M2.5 10.5v3M21.5 10.5v3"/>
+        </svg>
+      </span>
+      Llamalite
+    </a>
+    <nav class="nav-links" aria-label="主导航">
+      <a href="#features" data-zh="功能特性" data-en="Features">功能特性</a>
+      <a href="#how" data-zh="工作流程" data-en="How it works">工作流程</a>
+      <a href="#stack" data-zh="技术栈" data-en="Tech stack">技术栈</a>
+      <a href="#manual" data-zh="使用手册" data-en="Manual">使用手册</a>
+    </nav>
+    <div class="nav-act">
+      <button class="lang" id="langBtn" type="button" aria-label="切换语言 / Switch language">EN</button>
+      <a class="btn btn-ghost" href="https://github.com/sumcourage/llamalite" target="_blank" rel="noopener">GitHub</a>
+      <a class="btn btn-primary" href="https://github.com/sumcourage/llamalite/releases/latest" target="_blank" rel="noopener" data-zh="下载" data-en="Download">下载</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="wrap">
+      <span class="pill"><b>Tauri 2</b><span data-zh="由 llama.cpp 驱动" data-en="powered by llama.cpp">由 llama.cpp 驱动</span></span>
+      <h1 data-zh="本地大模型，<em>一键</em>跑起来" data-en="Run local LLMs <em>in one click</em>">本地大模型，<em>一键</em>跑起来</h1>
+      <p class="lede" data-zh="Llamalite 是一个跨平台桌面应用。它帮你从 ModelScope 下载 GGUF 模型、可视化配置并启动 llama-server，实时查看日志 —— 全程不需要打开命令行。" data-en="Llamalite is a cross-platform desktop app. It downloads GGUF models from ModelScope, lets you configure and launch llama-server visually, and streams logs in real time — no command line required.">Llamalite 是一个跨平台桌面应用。它帮你从 ModelScope 下载 GGUF 模型、可视化配置并启动 llama-server，实时查看日志 —— 全程不需要打开命令行。</p>
+      <div class="hero-act">
+        <a class="btn btn-primary btn-lg" href="https://github.com/sumcourage/llamalite/releases/latest" target="_blank" rel="noopener" data-zh="下载最新版本" data-en="Download latest release">下载最新版本</a>
+        <a class="btn btn-ghost btn-lg" href="#manual" data-zh="阅读使用手册" data-en="Read the manual">阅读使用手册</a>
+      </div>
+      <div class="ver-chip">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="verText" data-zh="当前版本 __APP_VERSION__" data-en="Version __APP_VERSION__">当前版本 __APP_VERSION__</span>
+        <span data-zh="· Windows / macOS / Linux" data-en="· Windows / macOS / Linux">· Windows / macOS / Linux</span>
+      </div>
+    </div>
+
+    <figure class="wrap preview">
+      <div class="mock" role="img" aria-label="Llamalite 界面示意">
+        <div class="mock-bar"><i></i><i></i><i></i><span>Llamalite</span></div>
+        <div class="mock-body">
+          <div class="mock-side"><b></b><b></b><b></b><b></b><b></b></div>
+          <div class="mock-main">
+            <div class="mock-cards">
+              <div class="mock-card"><u></u><s></s></div>
+              <div class="mock-card"><u></u><s></s></div>
+              <div class="mock-card"><u></u><s></s></div>
+            </div>
+            <div class="mock-log"><u></u><u></u><u></u><u></u><u></u></div>
+          </div>
+        </div>
+      </div>
+      <figcaption data-zh="界面示意图" data-en="UI preview">界面示意图</figcaption>
+    </figure>
+  </section>
+
+  <section class="section" id="features">
+    <div class="wrap">
+      <div class="sec-head rv">
+        <div class="kicker">Features</div>
+        <h2 data-zh="从下载模型到启动服务，都在一个窗口里" data-en="From downloading a model to a running server, all in one window">从下载模型到启动服务，都在一个窗口里</h2>
+        <p data-zh="五个模块覆盖 llama-server 的完整生命周期：检测硬件、下载模型、配置参数、启动服务、排查问题。" data-en="Five modules cover the full llama-server lifecycle: detect hardware, download models, configure parameters, launch services, and troubleshoot.">五个模块覆盖 llama-server 的完整生命周期：检测硬件、下载模型、配置参数、启动服务、排查问题。</p>
+      </div>
+
+      <div class="grid-feat">
+        <article class="feat rv">
+          <div class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg></div>
+          <h3 data-zh="仪表盘" data-en="Dashboard">仪表盘</h3>
+          <p data-zh="服务状态总览、本地模型数量与磁盘占用一目了然，常用操作（启动 / 停止 / 重启 / 打开 Web UI）放在最顺手的位置。" data-en="An overview of service status, local model count and disk usage — with start, stop, restart and open-Web-UI actions right where you need them.">服务状态总览、本地模型数量与磁盘占用一目了然，常用操作（启动 / 停止 / 重启 / 打开 Web UI）放在最顺手的位置。</p>
+        </article>
+
+        <article class="feat wide rv">
+          <div class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><circle cx="7" cy="7.5" r="1"/><circle cx="7" cy="16.5" r="1"/></svg></div>
+          <h3 data-zh="服务管理" data-en="Service management">服务管理</h3>
+          <p data-zh="两种配置模式：快速配置只需选一个本地模型和使用场景，采样参数、上下文长度、GPU 卸载层数、线程数会按你的硬件自动调优；高级配置则开放 host、port、ctx-size、gpu-layers 等全部 llama-server 参数。启动后日志实时流式输出并自动滚动。" data-en="Two configuration modes: Quick mode asks only for a local model and a usage scenario, then tunes sampling, context length, GPU offload layers and thread count to your hardware. Advanced mode exposes every llama-server parameter — host, port, ctx-size, gpu-layers and more. Once running, logs stream in live with auto-scroll.">两种配置模式：快速配置只需选一个本地模型和使用场景，采样参数、上下文长度、GPU 卸载层数、线程数会按你的硬件自动调优；高级配置则开放 host、port、ctx-size、gpu-layers 等全部 llama-server 参数。启动后日志实时流式输出并自动滚动。</p>
+        </article>
+
+        <article class="feat rv">
+          <div class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5V8z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg></div>
+          <h3 data-zh="模型管理" data-en="Model management">模型管理</h3>
+          <p data-zh="浏览本地已下载的 GGUF 模型，从 ModelScope 搜索并下载，下载日志可折叠、可取消；也能单独下载某个仓库里的单个 GGUF 文件。" data-en="Browse locally downloaded GGUF models, search and download from ModelScope with collapsible, cancellable live logs — or grab a single GGUF file from any repository.">浏览本地已下载的 GGUF 模型，从 ModelScope 搜索并下载，下载日志可折叠、可取消；也能单独下载某个仓库里的单个 GGUF 文件。</p>
+        </article>
+
+        <article class="feat rv">
+          <div class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3"/></svg></div>
+          <h3 data-zh="硬件检测与推荐" data-en="Hardware detection &amp; recommendations">硬件检测与推荐</h3>
+          <p data-zh="通过 sysinfo 读取 CPU、内存与显卡信息，再结合可用显存给出模型规模的量化推荐，避免选到跑不动的模型。" data-en="Reads CPU, memory and GPU information via sysinfo, then recommends model sizes and quantizations based on available VRAM — so you don't pick a model your machine can't run.">通过 sysinfo 读取 CPU、内存与显卡信息，再结合可用显存给出模型规模的量化推荐，避免选到跑不动的模型。</p>
+        </article>
+
+        <article class="feat rv">
+          <div class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></div>
+          <h3 data-zh="环境检查" data-en="Environment checker">环境检查</h3>
+          <p data-zh="自动校验 llama-server、Python 与 modelscope 依赖是否就绪，缺失时给出分平台的安装引导，省去逐个排查的时间。" data-en="Verifies that llama-server, Python and the modelscope package are ready, and shows platform-specific install guidance when something is missing.">自动校验 llama-server、Python 与 modelscope 依赖是否就绪，缺失时给出分平台的安装引导，省去逐个排查的时间。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how">
+    <div class="wrap">
+      <div class="sec-head rv">
+        <div class="kicker">How it works</div>
+        <h2 data-zh="三步，从零到可用的本地推理服务" data-en="Three steps from zero to a running local inference server">三步，从零到可用的本地推理服务</h2>
+      </div>
+      <div class="steps">
+        <article class="step rv">
+          <h3 data-zh="下载模型" data-en="Download a model">下载模型</h3>
+          <p data-zh="在模型库里搜索，或直接采用系统按你的显存推荐的结果，下载对应的 GGUF 量化文件。" data-en="Search the model catalog, or just take what the app recommends for your VRAM, and download the matching GGUF quantization.">在模型库里搜索，或直接采用系统按你的显存推荐的结果，下载对应的 GGUF 量化文件。</p>
+        </article>
+        <article class="step rv">
+          <h3 data-zh="配置服务" data-en="Configure the service">配置服务</h3>
+          <p data-zh="选择快速配置让参数自动适配硬件，或用高级配置精细调整 <code>ctx-size</code>、<code>gpu-layers</code> 等参数。" data-en="Use Quick mode to let parameters adapt to your hardware automatically, or Advanced mode to fine-tune <code>ctx-size</code>, <code>gpu-layers</code> and the rest.">选择快速配置让参数自动适配硬件，或用高级配置精细调整 <code>ctx-size</code>、<code>gpu-layers</code> 等参数。</p>
+        </article>
+        <article class="step rv">
+          <h3 data-zh="启动并使用" data-en="Launch and use">启动并使用</h3>
+          <p data-zh="一键启动 llama-server，日志实时可见；服务就绪后直接打开内置 Web UI，或把任意兼容 OpenAI 接口的客户端指向它。" data-en="Start llama-server with one click and watch the logs live. Once it's ready, open the built-in Web UI or point any OpenAI-compatible client at it.">一键启动 llama-server，日志实时可见；服务就绪后直接打开内置 Web UI，或把任意兼容 OpenAI 接口的客户端指向它。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="stack">
+    <div class="wrap">
+      <div class="sec-head rv">
+        <div class="kicker">Tech stack</div>
+        <h2 data-zh="体积小、启动快，原生编译的桌面应用" data-en="Small, fast to launch, natively compiled">体积小、启动快，原生编译的桌面应用</h2>
+        <p data-zh="前端用 Web 技术栈保证开发效率，后端与运行时用 Rust 和 llama.cpp 保证性能，最终打包成各平台的原生安装包。" data-en="A web stack on the frontend for development speed, Rust and llama.cpp on the backend and runtime for performance — packaged as native installers per platform.">前端用 Web 技术栈保证开发效率，后端与运行时用 Rust 和 llama.cpp 保证性能，最终打包成各平台的原生安装包。</p>
+      </div>
+      <dl class="stack rv">
+        <div class="stack-row">
+          <dt data-zh="前端" data-en="Frontend">前端</dt>
+          <dd><b>React 18</b><i>·</i><b>TypeScript</b><i>·</i><b>Vite 6</b><i>·</i><b>Ant Design 5</b><i>·</i><b>Zustand</b><i>·</i><b>TanStack Query</b><i>·</i><b>React Router</b></dd>
+        </div>
+        <div class="stack-row">
+          <dt data-zh="桌面框架" data-en="Desktop">桌面框架</dt>
+          <dd><b>Tauri 2</b><i>·</i>shell<i>·</i>dialog<i>·</i>fs</dd>
+        </div>
+        <div class="stack-row">
+          <dt data-zh="后端" data-en="Backend">后端</dt>
+          <dd><b>Rust</b><i>·</i>tokio<i>·</i>sysinfo<i>·</i>serde<i>·</i>uuid<i>·</i>chrono</dd>
+        </div>
+        <div class="stack-row">
+          <dt data-zh="运行时" data-en="Runtime">运行时</dt>
+          <dd><b>llama.cpp llama-server</b><i>·</i>ModelScope Hub API<i>·</i>Python 3</dd>
+        </div>
+        <div class="stack-row">
+          <dt data-zh="测试" data-en="Testing">测试</dt>
+          <dd><b>Vitest</b><i>·</i>Testing Library<i>·</i>pytest</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section" id="manual">
+    <div class="wrap">
+      <div class="sec-head rv">
+        <div class="kicker">Manual</div>
+        <h2 data-zh="完整使用手册" data-en="Full user manual">完整使用手册</h2>
+        <p data-zh="从安装依赖、首次配置到每个参数的取值含义，手册里都有图文说明。" data-en="From installing prerequisites and first-run setup to the meaning of every parameter — the manual covers it all.">从安装依赖、首次配置到每个参数的取值含义，手册里都有图文说明。</p>
+      </div>
+      <div class="manual-grid">
+        <a class="manual rv" href="./manual/zh/">
+          <div class="tag">中文</div>
+          <h3 data-zh="Llamalite 使用说明书" data-en="Llamalite User Manual (中文)">Llamalite 使用说明书</h3>
+          <p data-zh="面向中文用户的完整操作指南。" data-en="The complete operating guide, in Chinese.">面向中文用户的完整操作指南。</p>
+          <span class="go"><span data-zh="打开手册" data-en="Open manual">打开手册</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </span>
+        </a>
+        <a class="manual rv" href="./manual/en/">
+          <div class="tag">English</div>
+          <h3 data-zh="User Manual (English)" data-en="Llamalite User Manual">User Manual (English)</h3>
+          <p data-zh="英文版完整操作指南。" data-en="The complete operating guide, in English.">英文版完整操作指南。</p>
+          <span class="go"><span data-zh="打开手册" data-en="Open manual">打开手册</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <p data-zh="© 2026 sumcourage · 保留所有权利" data-en="© 2026 sumcourage · All rights reserved">© 2026 sumcourage · 保留所有权利</p>
+    <nav class="foot-links" aria-label="页脚导航">
+      <a href="https://github.com/sumcourage/llamalite" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/sumcourage/llamalite/releases" target="_blank" rel="noopener" data-zh="版本发布" data-en="Releases">版本发布</a>
+      <a href="https://github.com/sumcourage/llamalite/blob/main/LICENSE" target="_blank" rel="noopener" data-zh="许可协议" data-en="License">许可协议</a>
+      <a href="./manual/zh/" data-zh="中文手册" data-en="中文手册">中文手册</a>
+      <a href="./manual/en/" data-zh="英文手册" data-en="English manual">英文手册</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var STORE = 'llamalite-lang';
+
+  function apply(lang) {
+    var html = document.documentElement;
+    html.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+    document.querySelectorAll('[data-zh][data-en]').forEach(function (el) {
+      el.innerHTML = el.getAttribute(lang === 'zh' ? 'data-zh' : 'data-en');
+    });
+
+    var btn = document.getElementById('langBtn');
+    if (btn) {
+      btn.textContent = lang === 'zh' ? 'EN' : '中文';
+      btn.setAttribute('aria-label', lang === 'zh' ? 'Switch to English' : '切换到中文');
+    }
+
+    try { localStorage.setItem(STORE, lang); } catch (e) { /* private mode */ }
+  }
+
+  var saved = null;
+  try { saved = localStorage.getItem(STORE); } catch (e) { /* private mode */ }
+  var initial = saved || ((navigator.language || 'zh').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
+  apply(initial);
+
+  var btn = document.getElementById('langBtn');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      apply(document.documentElement.lang === 'zh-CN' ? 'en' : 'zh');
+    });
+  }
+
+  // The deploy workflow substitutes __APP_VERSION__ with package.json's version.
+  var ver = document.getElementById('verText');
+  if (ver && ver.textContent.indexOf('__APP_VERSION__') !== -1) {
+    ver.parentNode.style.display = 'none';
+  }
+
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var items = document.querySelectorAll('.rv');
+  if (reduced || !('IntersectionObserver' in window)) {
+    items.forEach(function (el) { el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.08 });
+    items.forEach(function (el) { io.observe(el); });
+  }
+})();
+</script>
+</body>
+</html>

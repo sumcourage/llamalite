@@ -6,6 +6,8 @@ Llamalite 帮助你从 [ModelScope](https://modelscope.cn) 下载 GGUF 模型、
 
 > English README: [README.md](./README.md)
 
+官网：<https://sumcourage.github.io/llamalite/>
+
 ## 功能特性
 
 - **仪表盘** — 服务运行状态总览、本地模型数量 / 总大小统计、快捷操作（启动 / 停止 / 重启 / 打开 Web 界面）。
@@ -45,6 +47,7 @@ llamalite/
 │   │   ├── sidecar/      # llama-server 进程管理器（启停 / 日志流）
 │   │   └── storage/      # JSON 文件持久化（服务 / 模型 / 设置 / 目录缓存）
 │   └── python/           # ModelScope 辅助脚本（搜索、下载、列文件、清理）
+├── website/              # 项目官网（发布到 GitHub Pages）
 ├── llamalite-manual-zh/  # 中文用户手册
 ├── llamalite-manual-en/  # 英文用户手册
 └── package.json
@@ -105,8 +108,12 @@ npm run version:bump 0.3.0   # 先更新 package.json，再同步到各处
 
 ## 用户手册
 
-- 中文用户手册：[llamalite-manual-zh/llamalite-manual-zh.html](llamalite-manual-zh/llamalite-manual-zh.html)
-- 英文用户手册：[llamalite-manual-en/llamalite-manual-en.html](llamalite-manual-en/llamalite-manual-en.html)
+- 中文用户手册：[llamalite-manual-zh/llamalite-manual-zh.html](llamalite-manual-zh/llamalite-manual-zh.html) · [在线版](https://sumcourage.github.io/llamalite/manual/zh/)
+- 英文用户手册：[llamalite-manual-en/llamalite-manual-en.html](llamalite-manual-en/llamalite-manual-en.html) · [在线版](https://sumcourage.github.io/llamalite/manual/en/)
+
+## 官网
+
+官网页面位于 [`website/index.html`](./website/index.html)，与两本手册一起发布在 <https://sumcourage.github.io/llamalite/>，手册路径为 `/manual/zh/` 与 `/manual/en/`。[`pages.yml`](./.github/workflows/pages.yml) 会把这三部分组装成一个发布产物；当 `main` 分支上的 `website/`、任一手册或 `package.json` 发生变化时，自动部署到 GitHub Pages。页面上的版本号在部署时从 `package.json` 注入，不会与代码版本脱节。
 
 ## 许可证
 

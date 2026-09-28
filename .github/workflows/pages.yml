@@ -1,0 +1,59 @@
+name: Deploy Website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - 'llamalite-manual-zh/**'
+      - 'llamalite-manual-en/**'
+      - 'package.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Assemble site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The manuals are the single source of truth; the site is assembled from
+      # them at deploy time so no copies live in the repository.
+      - name: Assemble _site
+        run: |
+          set -euo pipefail
+          mkdir -p _site/manual/zh _site/manual/en
+          cp website/index.html _site/index.html
+          cp llamalite-manual-zh/llamalite-manual-zh.html _site/manual/zh/index.html
+          cp llamalite-manual-en/llamalite-manual-en.html _site/manual/en/index.html
+          VERSION=$(node -p "require('./package.json').version")
+          sed -i "s/__APP_VERSION__/v${VERSION}/g" _site/index.html
+          echo "Deploying version v${VERSION}"
+          find _site -type f | sort
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
