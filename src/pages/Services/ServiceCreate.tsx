@@ -13,12 +13,14 @@ const ServiceCreate: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
-  const { getDefaultValues, validateAll, serializeParameters } = useParameterValidation();
+  const { validateAll, mergeStoredValues } = useParameterValidation();
   const { services, fetchServices } = useServiceStore();
 
   const [serviceName, setServiceName] = useState('');
   const [modelPath, setModelPath] = useState('');
-  const [parameterValues, setParameterValues] = useState<ParameterValues>(getDefaultValues());
+  const [parameterValues, setParameterValues] = useState<ParameterValues>(
+    () => mergeStoredValues()
+  );
   const [saving, setSaving] = useState(false);
   const [loadingService, setLoadingService] = useState(false);
 
@@ -46,15 +48,11 @@ const ServiceCreate: React.FC = () => {
         setServiceName(targetService.name);
         setModelPath(targetService.modelPath);
 
-        // Merge stored parameters with defaults (defaults fill in any missing keys)
-        const defaults = getDefaultValues();
-        const stored = targetService.parameters as Record<string, unknown>;
-        const merged: ParameterValues = { ...defaults };
-        for (const key of Object.keys(defaults)) {
-          if (stored[key] !== undefined && stored[key] !== null) {
-            merged[key] = stored[key] as ParameterValues[string];
-          }
-        }
+        // Restore every persisted parameter (including those without defaults)
+        const merged = mergeStoredValues(
+          targetService.parameters as Record<string, unknown>
+        );
+        merged.model = targetService.modelPath || merged.model;
         setParameterValues(merged);
       } catch (err) {
         message.error(`加载服务配置失败: ${String(err)}`);

@@ -101,6 +101,42 @@ export function useParameterValidation() {
     return values;
   }, []);
 
+  const coerceValue = useCallback(
+    (meta: ParameterMeta, raw: unknown): ParameterValues[string] => {
+      switch (meta.type) {
+        case 'number': {
+          const num = typeof raw === 'number' ? raw : Number(raw);
+          return Number.isFinite(num) ? num : undefined;
+        }
+        case 'boolean':
+          if (typeof raw === 'boolean') return raw;
+          if (typeof raw === 'string') return raw === 'true' || raw === '1';
+          if (typeof raw === 'number') return raw !== 0;
+          return undefined;
+        default:
+          return String(raw);
+      }
+    },
+    []
+  );
+
+  // Merge persisted parameters with defaults so every known key is restored,
+  // including parameters that have no defaultValue.
+  const mergeStoredValues = useCallback(
+    (stored?: Record<string, unknown> | null): ParameterValues => {
+      const values: ParameterValues = { ...getDefaultValues() };
+      if (!stored) return values;
+
+      for (const [key, raw] of Object.entries(stored)) {
+        if (raw === undefined || raw === null || raw === '') continue;
+        const meta = parameterMap.get(key);
+        values[key] = meta ? coerceValue(meta, raw) : (raw as ParameterValues[string]);
+      }
+      return values;
+    },
+    [coerceValue, getDefaultValues, parameterMap]
+  );
+
   const serializeParameters = useCallback(
     (values: ParameterValues): string[] => {
       const args: string[] = [];
@@ -131,6 +167,7 @@ export function useParameterValidation() {
     validateParameter,
     validateAll,
     getDefaultValues,
+    mergeStoredValues,
     serializeParameters,
     parameterMap,
   };

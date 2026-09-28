@@ -145,6 +145,75 @@ describe('useParameterValidation', () => {
     });
   });
 
+  describe('mergeStoredValues', () => {
+    it('should restore parameters that have no default value', () => {
+      const values = result.result.current.mergeStoredValues({
+        alias: 'my-model',
+        'api-key': 'sk-123',
+        device: 'CUDA0',
+        'json-schema': '{"type":"object"}',
+        'hf-repo': 'Qwen/Qwen2.5-7B-GGUF',
+      });
+
+      expect(values.alias).toBe('my-model');
+      expect(values['api-key']).toBe('sk-123');
+      expect(values.device).toBe('CUDA0');
+      expect(values['json-schema']).toBe('{"type":"object"}');
+      expect(values['hf-repo']).toBe('Qwen/Qwen2.5-7B-GGUF');
+    });
+
+    it('should fill defaults for keys missing from stored values', () => {
+      const values = result.result.current.mergeStoredValues({ port: 9000 });
+      expect(values.port).toBe(9000);
+      expect(values.threads).toBe(8);
+      expect(values.host).toBe('127.0.0.1');
+    });
+
+    it('should return defaults when nothing is stored', () => {
+      const values = result.result.current.mergeStoredValues(undefined);
+      expect(values.threads).toBe(8);
+      expect(values['cont-batching']).toBe(true);
+    });
+
+    it('should coerce string numbers back to numbers', () => {
+      const values = result.result.current.mergeStoredValues({
+        threads: '16',
+        temperature: '0.5',
+      });
+      expect(values.threads).toBe(16);
+      expect(values.temperature).toBe(0.5);
+    });
+
+    it('should coerce boolean-like values', () => {
+      const values = result.result.current.mergeStoredValues({
+        mlock: 'true',
+        'flash-attn': 0,
+        embedding: false,
+      });
+      expect(values.mlock).toBe(true);
+      expect(values['flash-attn']).toBe(false);
+      expect(values.embedding).toBe(false);
+    });
+
+    it('should keep unknown keys so they are not lost on save', () => {
+      const values = result.result.current.mergeStoredValues({
+        'legacy-param': 'value',
+      });
+      expect(values['legacy-param']).toBe('value');
+    });
+
+    it('should skip empty values and fall back to defaults', () => {
+      const values = result.result.current.mergeStoredValues({
+        alias: '',
+        'api-key': null,
+        port: undefined,
+      });
+      expect(values.alias).toBeUndefined();
+      expect(values['api-key']).toBeUndefined();
+      expect(values.port).toBe(8080);
+    });
+  });
+
   describe('serializeParameters', () => {
     it('should convert boolean flags', () => {
       const args = result.result.current.serializeParameters({ mlock: true });
