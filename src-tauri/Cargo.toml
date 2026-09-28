@@ -1,6 +1,6 @@
 [package]
 name = "llamalite"
-version = "0.1.0"
+version = "0.2.0"
 description = "Llamalite - LLM 服务管理器"
 authors = ["sumcourage"]
 edition = "2021"

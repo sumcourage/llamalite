@@ -1,6 +1,6 @@
 {
   "productName": "Llamalite",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "com.llamalite.desktop",
   "build": {
     "frontendDist": "../dist",

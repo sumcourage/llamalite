@@ -393,7 +393,7 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 <aside class="toc-sidebar">
   <div class="brand">
     <h2>Llamalite</h2>
-    <span>User Manual v0.1</span>
+    <span>User Manual v0.2</span>
   </div>
   <nav>
     <div class="toc-group">Getting Started</div>
@@ -417,12 +417,12 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 
 <!-- Cover -->
 <section class="cover" id="top">
-  <div class="version-tag">v0.1.0</div>
+  <div class="version-tag">v0.2.0</div>
   <h1>Llamalite User Manual</h1>
   <p class="subtitle">A Tauri v2 desktop application for managing local LLM inference services powered by llama.cpp. Search and download models, configure server parameters, and control service lifecycle — all through a visual interface, no command line required.</p>
   <div class="meta-row">
-    <span>Version 0.1.0</span>
-    <span>August 2026</span>
+    <span>Version 0.2.0</span>
+    <span>September 2026</span>
     <span>Windows / macOS / Linux</span>
   </div>
 </section>
@@ -437,7 +437,7 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
   <div class="feature-card">
     <div class="fc-icon">&#9881;</div>
     <h4>Service Management</h4>
-    <p>Create, edit, start, stop, and restart llama.cpp inference services with real-time log monitoring.</p>
+    <p>Create, edit, start, stop, and restart llama.cpp inference services with real-time log monitoring, using either Quick or Advanced configuration.</p>
   </div>
   <div class="feature-card">
     <div class="fc-icon">&#128230;</div>
@@ -452,7 +452,7 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
   <div class="feature-card">
     <div class="fc-icon">&#128295;</div>
     <h4>Parameter Config</h4>
-    <p>Visually configure 86 llama.cpp server parameters across General, Sampling, and Server categories.</p>
+    <p>Visually configure 86 llama.cpp server parameters across General, Sampling, and Server categories, plus a Quick configuration mode that recommends parameters for your hardware.</p>
   </div>
 </div>
 
@@ -661,6 +661,7 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 <ul>
   <li>Displays repository ID and local storage path</li>
   <li>Real-time log panel auto-scrolls, showing current filename, progress percentage, download speed, and completed file count</li>
+  <li>The log panel is collapsed by default and previews only the latest log line; click its header to expand the full log and click again to collapse, keeping many download tasks from crowding the page</li>
   <li>Click "Cancel & Clean" to terminate the download and delete cached files</li>
 </ul>
 
@@ -720,15 +721,51 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 </div>
 
 <h3>Creating a Service</h3>
-<p>Click "New Service" to enter the creation page. Fill in the following information:</p>
+<p>Click "New Service" to enter the creation page. The top of the page offers two configuration modes that share the same parameter state — switching between them at any time never loses what you have filled in:</p>
 
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Mode</th><th>Best for</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Quick configuration</td><td>Users unfamiliar with model parameters</td><td>Pick a model and a usage scenario; everything else is recommended for your hardware. This is the default mode when creating a service.</td></tr>
+    <tr><td>Advanced configuration</td><td>Users who need fine control</td><td>Adjust every llama.cpp parameter one by one. This is the default mode when editing an existing service.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Quick configuration flow</h4>
+<div class="steps">
+  <div class="step">
+    <h4>Basic Info</h4>
+    <p>Enter a service name (filled in automatically when you pick a model from the list) and choose an already-downloaded local GGUF model from the "Model File" dropdown. You can also click "Browse" to select another model on disk. If you have no local models yet, follow the link in the hint to download one from Model Management.</p>
+  </div>
+  <div class="step">
+    <h4>Choose a Purpose</h4>
+    <p>Pick one of General Chat / Code Assistant / Long-text Analysis / Creative Writing / Embedding. The matching sampling parameters and embedding mode are applied automatically. With "Embedding" selected, the service only returns text vectors and does not generate chat responses.</p>
+  </div>
+  <div class="step">
+    <h4>Runtime Settings</h4>
+    <p>The top of the card shows the detected CPU, memory, and GPU. Click "Recommend for my hardware" to set thread count, context length, GPU offload layers, batch size, and Flash Attention automatically, or adjust the context length, GPU acceleration switch, and service port yourself. Expanding "More options" also exposes the chat template (Jinja) and Flash Attention.</p>
+  </div>
+  <div class="step">
+    <h4>Preview & Save</h4>
+    <p>The "Configuration Preview" section lists the key parameters that will take effect. Once everything looks right, click "Save" in the top-right corner and start the service from the service list.</p>
+  </div>
+</div>
+
+<div class="callout tip">
+  <div class="callout-title">Tip</div>
+  <p>When creating a service, a recommended parameter set is applied automatically once hardware detection completes; parameters you have already edited manually are never overwritten. To fine-tune further, switch to "Advanced configuration" in the top-right corner to see every parameter.</p>
+</div>
+
+<h4>Advanced configuration flow</h4>
 <div class="steps">
   <div class="step">
     <h4>Service Name</h4>
     <p>Give the service a recognizable name, e.g., "Qwen2.5-7B Local Chat".</p>
   </div>
   <div class="step">
-    <h4>Select Model File</h4>
+    <h4>Model File Path</h4>
     <p>Click "Browse" to select a local GGUF model file. You can also type the file path manually.</p>
   </div>
   <div class="step">
@@ -762,7 +799,7 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 <section id="parameters">
 <h2>Parameter Configuration</h2>
 
-<p>When creating or editing a service, you can configure llama.cpp startup parameters. Llamalite organizes 86 parameters into three categories presented as visual form fields.</p>
+<p>When creating or editing a service, you can configure llama.cpp startup parameters in "Advanced configuration" mode. Llamalite organizes 86 parameters into three categories presented as visual form fields. If you would rather not set them one by one, switch to "Quick configuration" mode and just pick a model and a purpose — the parameters are then recommended for your hardware.</p>
 
 <h3>General Parameters</h3>
 <p>Foundation parameters affecting model loading and inference behavior.</p>
@@ -859,7 +896,7 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 <p>The "About" page is accessible from the bottom of the Settings page. It displays the application's basic information:</p>
 <ul>
   <li>Application name: Llamalite</li>
-  <li>Version: 0.1.0</li>
+  <li>Version: 0.2.0</li>
   <li>Tech stack: Tauri v2 + React 18 + TypeScript + Rust</li>
   <li>UI framework: Ant Design 5</li>
   <li>Runtime: llama.cpp + Python 3</li>
@@ -905,7 +942,7 @@ hr { border: none; height: 1px; background: var(--rule); margin: 2.5rem 0; }
 </section>
 
 <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--rule); text-align: center; color: var(--muted); font-size: 0.8rem;">
-  <p>Llamalite v0.1.0 &mdash; Cross-Platform Local LLM Inference Service Desktop Manager</p>
+  <p>Llamalite v0.2.0 &mdash; Cross-Platform Local LLM Inference Service Desktop Manager</p>
   <p>Built with Tauri v2 + React 18 + Rust &middot; Supports Windows / macOS / Linux</p>
 </div>
 

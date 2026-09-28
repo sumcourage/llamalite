@@ -2,15 +2,15 @@
 
 一个跨平台的本地 LLM 推理服务管理桌面应用，基于 [Tauri 2](https://tauri.app/)（React + TypeScript 前端、Rust 后端），由 [llama.cpp](https://github.com/ggerganov/llama.cpp) 的 `llama-server` 驱动。
 
-Llamalite 帮助你从 [ModelScope](https://modelscope.cn) 下载 GGUF 模型、通过图形界面配置并启动 llama-server 实例、实时查看运行日志 —— 全程无需命令行。
+Llamalite 帮助你从 [ModelScope](https://modelscope.cn) 下载 GGUF 模型、通过图形界面配置并启动 llama-server 实例（新手可用快速配置一键上手，需要时也可逐项精调参数）、实时查看运行日志 —— 全程无需命令行。
 
 > English README: [README.md](./README.md)
 
 ## 功能特性
 
 - **仪表盘** — 服务运行状态总览、本地模型数量 / 总大小统计、快捷操作（启动 / 停止 / 重启 / 打开 Web 界面）。
-- **服务管理** — 创建、编辑、删除服务配置，可自定义 llama-server 参数（host、端口、上下文长度、GPU 层数等）；支持启动 / 停止 / 重启、实时日志流与自动滚动。
-- **模型管理** — 浏览本地已下载的 GGUF 模型；从 ModelScope 下载模型（带进度跟踪与取消）；搜索模型库；查看并单独下载仓库中的某个 GGUF 文件。
+- **服务管理** — 创建、编辑、删除服务配置，提供两种配置方式：**快速配置**（选择本地模型与使用场景，采样参数、上下文长度、GPU 卸载层数、线程数等按硬件自动推荐）与**高级配置**（自由调整全部 llama-server 参数，如 host、端口、上下文长度、GPU 层数等）；支持启动 / 停止 / 重启、实时日志流与自动滚动。
+- **模型管理** — 浏览本地已下载的 GGUF 模型；从 ModelScope 下载模型（带进度跟踪、可折叠的实时下载日志与取消）；搜索模型库；查看并单独下载仓库中的某个 GGUF 文件。
 - **硬件信息与推荐** — 通过 `sysinfo` 读取硬件信息（CPU / 内存 / GPU），并根据显存给出模型规格推荐。
 - **环境检查** — 检测 `llama-server`、Python、`modelscope` 包是否就绪，并给出分步安装指引。
 
@@ -91,6 +91,17 @@ npm run test:coverage  # 覆盖率报告
 ```
 
 Python 辅助脚本在 `src-tauri/python/tests` 下有独立测试（使用 `pytest` 运行）。
+
+## 版本管理
+
+应用版本以 `package.json` 为唯一来源：关于页在构建时读取（注入为 `__APP_VERSION__`），`src-tauri/tauri.conf.json` 直接引用该文件，因此安装包版本会自动跟随。手册封面日期在每次同步时刷新为当前月份。
+
+```bash
+npm run version:sync         # 同步当前版本并刷新手册封面日期
+npm run version:bump 0.3.0   # 先更新 package.json，再同步到各处
+```
+
+`src/__tests__/version-sync.test.ts` 会在上述文件版本不一致时让测试失败。
 
 ## 用户手册
 

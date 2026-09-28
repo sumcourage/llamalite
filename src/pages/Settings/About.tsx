@@ -36,10 +36,10 @@ const About: React.FC = () => {
 
         <Descriptions column={1} colon={false} size="small">
           <Descriptions.Item label="版本号">
-            <Text style={{ color: '#e2e8f0' }}>0.1.0</Text>
+            <Text style={{ color: '#e2e8f0' }}>{__APP_VERSION__}</Text>
           </Descriptions.Item>
           <Descriptions.Item label="构建时间">
-            <Text style={{ color: '#e2e8f0' }}>2024-01</Text>
+            <Text style={{ color: '#e2e8f0' }}>{__BUILD_TIME__}</Text>
           </Descriptions.Item>
           <Descriptions.Item label="技术栈">
             <Text style={{ color: '#e2e8f0' }}>
@@ -71,12 +71,12 @@ const About: React.FC = () => {
             核心功能
           </Title>
           <ul style={{ color: '#94a3b8', fontSize: 14, paddingLeft: 20, lineHeight: 2 }}>
-            <li>可视化配置 llama.cpp 服务器参数</li>
-            <li>从 HuggingFace 搜索和下载模型</li>
+            <li>可视化配置 llama.cpp 服务器参数，支持快速配置与高级配置</li>
+            <li>从 ModelScope 搜索和下载模型</li>
             <li>启动/停止/重启推理服务</li>
             <li>实时查看服务日志</li>
             <li>硬件检测与智能模型推荐</li>
-            <li>支持断点续传下载</li>
+            <li>下载进度实时日志与任务取消</li>
           </ul>
         </div>
       </Card>

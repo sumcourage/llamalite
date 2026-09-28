@@ -501,7 +501,7 @@ hr {
 <aside class="toc-sidebar">
   <div class="brand">
     <h2>Llamalite</h2>
-    <span>使用说明书 v0.1</span>
+    <span>使用说明书 v0.2</span>
   </div>
   <nav>
     <div class="toc-group">入门</div>
@@ -525,12 +525,12 @@ hr {
 
 <!-- Cover -->
 <section class="cover" id="top">
-  <div class="version-tag">v0.1.0</div>
+  <div class="version-tag">v0.2.0</div>
   <h1>Llamalite 使用说明书</h1>
   <p class="subtitle">基于 Tauri v2 的本地 LLM 推理服务桌面管理工具。无需命令行操作，即可完成模型搜索下载、服务参数配置、推理服务启停与日志监控等全生命周期管理。</p>
   <div class="meta-row">
-    <span>版本 0.1.0</span>
-    <span>2026 年 8 月</span>
+    <span>版本 0.2.0</span>
+    <span>2026 年 9 月</span>
     <span>Windows / macOS / Linux</span>
   </div>
 </section>
@@ -545,7 +545,7 @@ hr {
   <div class="feature-card">
     <div class="fc-icon">&#9881;</div>
     <h4>服务管理</h4>
-    <p>创建、编辑、启动、停止和重启 llama.cpp 推理服务，实时查看运行日志。</p>
+    <p>创建、编辑、启动、停止和重启 llama.cpp 推理服务，实时查看运行日志，支持快速配置与高级配置两种方式。</p>
   </div>
   <div class="feature-card">
     <div class="fc-icon">&#128230;</div>
@@ -560,7 +560,7 @@ hr {
   <div class="feature-card">
     <div class="fc-icon">&#128295;</div>
     <h4>参数配置</h4>
-    <p>可视化配置 86 项 llama.cpp 服务参数，支持通用、采样和服务三大类别。</p>
+    <p>可视化配置 86 项 llama.cpp 服务参数，支持通用、采样和服务三大类别，并提供按硬件自动推荐的快速配置模式。</p>
   </div>
 </div>
 
@@ -769,6 +769,7 @@ hr {
 <ul>
   <li>显示仓库 ID 和本地存储路径</li>
   <li>实时日志面板自动滚动，展示当前下载文件名、进度百分比、下载速度和已完成文件数</li>
+  <li>日志面板默认为收起状态，只显示最新一条日志；点击标题栏可展开查看完整日志，再次点击收起，避免多个下载任务同时占用页面</li>
   <li>点击「取消并清理」可终止下载并删除已下载的缓存文件</li>
 </ul>
 
@@ -828,15 +829,51 @@ hr {
 </div>
 
 <h3>创建服务</h3>
-<p>点击「新建服务」按钮进入创建页面。需要填写以下信息：</p>
+<p>点击「新建服务」按钮进入创建页面。页面顶部提供两种配置方式，二者共用同一份参数，随时切换都不会丢失已填内容：</p>
 
+<div class="table-wrap">
+<table>
+  <thead><tr><th>模式</th><th>适用场景</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>快速配置</td><td>不熟悉模型参数</td><td>只需选择模型和使用用途，其余参数按硬件自动推荐。新建服务时默认进入该模式。</td></tr>
+    <tr><td>高级配置</td><td>需要精细控制</td><td>逐项调整全部 llama.cpp 参数。编辑已有服务时默认进入该模式。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>快速配置流程</h4>
+<div class="steps">
+  <div class="step">
+    <h4>基础信息</h4>
+    <p>填写服务名称（从下拉选择模型时会自动填入），并在「模型文件」下拉框中选择已下载的本地 GGUF 模型；也可以点击「手动选择文件」浏览磁盘上的其他模型。若还没有本地模型，可点击提示中的链接前往模型管理下载。</p>
+  </div>
+  <div class="step">
+    <h4>选择用途</h4>
+    <p>在「通用对话 / 代码助手 / 长文本分析 / 创意写作 / 向量嵌入」中选择一个使用场景，系统会自动套用对应的采样参数与嵌入模式。选择「向量嵌入」时服务仅输出文本向量，不进行对话生成。</p>
+  </div>
+  <div class="step">
+    <h4>运行配置</h4>
+    <p>卡片顶部显示检测到的 CPU、内存和 GPU 信息。点击「按硬件推荐一键配置」可按硬件自动设置线程数、上下文长度、GPU 卸载层数、批处理大小和 Flash Attention；也可以自行调整上下文长度、GPU 加速开关和服务端口。展开「更多选项」还能设置聊天模板（Jinja）与 Flash Attention。</p>
+  </div>
+  <div class="step">
+    <h4>配置预览与保存</h4>
+    <p>「配置预览」区域列出即将生效的关键参数。确认无误后点击右上角「保存」创建服务，之后即可在服务列表中启动。</p>
+  </div>
+</div>
+
+<div class="callout tip">
+  <div class="callout-title">提示</div>
+  <p>新建服务时，硬件检测完成后会自动套用一套推荐参数；已经被你手动修改过的参数不会被覆盖。需要进一步微调时，点击右上角切换到「高级配置」即可看到全部参数。</p>
+</div>
+
+<h4>高级配置流程</h4>
 <div class="steps">
   <div class="step">
     <h4>服务名称</h4>
     <p>为服务取一个便于识别的名称，例如 "Qwen2.5-7B 本地对话"。</p>
   </div>
   <div class="step">
-    <h4>选择模型文件</h4>
+    <h4>模型文件路径</h4>
     <p>点击「选择文件」按钮，浏览并选择一个本地 GGUF 模型文件。也可以手动输入文件路径。</p>
   </div>
   <div class="step">
@@ -870,7 +907,7 @@ hr {
 <section id="parameters">
 <h2>参数配置</h2>
 
-<p>创建或编辑服务时，可以配置 llama.cpp 的启动参数。Llamalite 将 86 项参数分为三大类别，以可视化表单形式呈现。</p>
+<p>创建或编辑服务时，可以在「高级配置」模式下配置 llama.cpp 的启动参数。Llamalite 将 86 项参数分为三大类别，以可视化表单形式呈现。如果不想逐项设置，可切换到「快速配置」模式，仅需选择模型与使用用途，参数会按硬件自动推荐。</p>
 
 <h3>通用参数</h3>
 <p>影响模型加载和推理行为的基础参数。</p>
@@ -967,7 +1004,7 @@ hr {
 <p>「关于」页面位于设置页面的底部入口，展示应用的基本信息：</p>
 <ul>
   <li>应用名称：Llamalite</li>
-  <li>版本号：0.1.0</li>
+  <li>版本号：0.2.0</li>
   <li>技术栈：Tauri v2 + React 18 + TypeScript + Rust</li>
   <li>UI 框架：Ant Design 5</li>
   <li>运行时：llama.cpp + Python 3</li>
@@ -1013,7 +1050,7 @@ hr {
 </section>
 
 <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--rule); text-align: center; color: var(--muted); font-size: 0.8rem;">
-  <p>Llamalite v0.1.0 &mdash; 跨平台本地 LLM 推理服务桌面管理工具</p>
+  <p>Llamalite v0.2.0 &mdash; 跨平台本地 LLM 推理服务桌面管理工具</p>
   <p>基于 Tauri v2 + React 18 + Rust 构建 &middot; 支持 Windows / macOS / Linux</p>
 </div>
 

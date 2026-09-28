@@ -2,15 +2,15 @@
 
 A cross-platform desktop application for managing local LLM inference services, built on [Tauri 2](https://tauri.app/) (React + TypeScript frontend, Rust backend) and powered by [llama.cpp](https://github.com/ggerganov/llama.cpp)'s `llama-server`.
 
-Llamalite helps you download GGUF models from [ModelScope](https://modelscope.cn), configure and launch llama-server instances with a few clicks, and monitor them with live logs — no command line required.
+Llamalite helps you download GGUF models from [ModelScope](https://modelscope.cn), configure and launch llama-server instances with a few clicks — quick presets for beginners, full parameter control when you need it — and monitor them with live logs, no command line required.
 
 > 中文说明见 [README.zh-CN.md](./README.zh-CN.md)
 
 ## Features
 
 - **Dashboard** — overview of service status, local model count / total size, and quick actions (start / stop / restart / open Web UI).
-- **Service management** — create, edit and delete service configurations with customizable llama-server parameters (host, port, context length, GPU layers, etc.), start/stop/restart, real-time log streaming with auto-scroll.
-- **Model management** — browse locally downloaded GGUF models, download models from ModelScope with progress tracking and cancellation, search the ModelScope catalog, and inspect/download a single GGUF file from a repo.
+- **Service management** — create, edit and delete service configurations in two modes: **Quick configuration** (pick a local model and a usage scenario; sampling, context length, GPU offload, thread count and more are tuned to your hardware automatically) and **Advanced configuration** (adjust every llama-server parameter such as host, port, context length and GPU layers); start/stop/restart with real-time log streaming and auto-scroll.
+- **Model management** — browse locally downloaded GGUF models, download models from ModelScope with progress tracking, collapsible live download logs and cancellation, search the ModelScope catalog, and inspect/download a single GGUF file from a repo.
 - **Hardware info & recommendations** — read hardware stats via `sysinfo` (CPU / memory / GPU) and get VRAM-based model size recommendations.
 - **Environment checker** — verifies `llama-server`, Python and the `modelscope` package are installed, and provides guided install steps.
 
@@ -91,6 +91,17 @@ npm run test:coverage  # coverage report
 ```
 
 Python helper scripts have their own tests under `src-tauri/python/tests` (run with `pytest`).
+
+## Versioning
+
+`package.json` is the single source of truth for the app version. The About page reads it at build time (injected as `__APP_VERSION__`), and `src-tauri/tauri.conf.json` references the file directly, so the installer version follows automatically. The manual cover dates are stamped with the current month on every sync.
+
+```bash
+npm run version:sync         # propagate the version and refresh the manual cover date
+npm run version:bump 0.3.0   # bump package.json, then propagate everywhere
+```
+
+A consistency test (`src/__tests__/version-sync.test.ts`) fails whenever any of those files drifts out of sync.
 
 ## User Manual
 
