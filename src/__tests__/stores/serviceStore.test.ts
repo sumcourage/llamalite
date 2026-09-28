@@ -34,6 +34,7 @@ describe('useServiceStore', () => {
     useServiceStore.setState({
       services: [],
       currentStatus: null,
+      serviceStatuses: {},
       logs: [],
       loading: false,
       error: null,
@@ -165,6 +166,48 @@ describe('useServiceStore', () => {
       await useServiceStore.getState().restartService('svc-1');
 
       expect(vi.mocked(invoke)).toHaveBeenCalledWith('restart_service', { id: 'svc-1' });
+    });
+  });
+
+  describe('fetchStatus', () => {
+    it('should store the status under the requested service id', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce({
+        id: 'svc-1',
+        status: 'running',
+        modelName: 'Qwen 服务',
+        port: 8080,
+      });
+
+      await useServiceStore.getState().fetchStatus('svc-1');
+
+      const state = useServiceStore.getState();
+      expect(state.serviceStatuses['svc-1'].status).toBe('running');
+      // Other services must not inherit the running status
+      expect(state.serviceStatuses['svc-2']).toBeUndefined();
+    });
+
+    it('should not let a stopped service overwrite currentStatus', async () => {
+      useServiceStore.setState({
+        currentStatus: {
+          id: 'svc-1',
+          status: 'running',
+          modelName: 'Qwen 服务',
+          port: 8080,
+        },
+      });
+      vi.mocked(invoke).mockResolvedValueOnce({
+        id: 'svc-2',
+        status: 'stopped',
+        modelName: '',
+        port: 0,
+      });
+
+      await useServiceStore.getState().fetchStatus('svc-2');
+
+      const state = useServiceStore.getState();
+      expect(state.serviceStatuses['svc-2'].status).toBe('stopped');
+      expect(state.currentStatus?.id).toBe('svc-1');
+      expect(state.currentStatus?.status).toBe('running');
     });
   });
 

@@ -140,61 +140,6 @@ const ServiceList: React.FC = () => {
                 className="hover-card"
                 style={{ borderRadius: 12 }}
                 size="small"
-                actions={[
-                  status === 'running' ? (
-                    <Button
-                      type="link"
-                      icon={<GlobalOutlined />}
-                      onClick={() => handleOpenWebUI(service)}
-                    >
-                      打开Web页面
-                    </Button>
-                  ) : (
-                    <Button type="link" icon={<GlobalOutlined />} disabled>
-                      打开Web页面
-                    </Button>
-                  ),
-                  <Button
-                    type="link"
-                    icon={<RightOutlined />}
-                    onClick={() => navigate(`/services/${service.id}`)}
-                  >
-                    详情
-                  </Button>,
-                  <Button
-                    type="link"
-                    icon={<EditOutlined />}
-                    disabled={status === 'running' || status === 'starting'}
-                    onClick={() => navigate(`/services/${service.id}/edit`)}
-                  >
-                    编辑
-                  </Button>,
-                  status === 'running' ? (
-                    <Button
-                      type="link"
-                      danger
-                      onClick={() => handleStop(service.id)}
-                    >
-                      停止
-                    </Button>
-                  ) : (
-                    <Button
-                      type="link"
-                      onClick={() => handleStart(service.id)}
-                      loading={status === 'starting'}
-                    >
-                      启动
-                    </Button>
-                  ),
-                  <Button
-                    type="link"
-                    danger
-                    disabled={status === 'running' || status === 'starting'}
-                    onClick={() => setDeleteTarget(service)}
-                  >
-                    删除
-                  </Button>,
-                ]}
               >
                 <Card.Meta
                   title={
@@ -227,6 +172,59 @@ const ServiceList: React.FC = () => {
                     </div>
                   }
                 />
+                <div className="service-card-actions">
+                  <Space size={4} wrap>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<GlobalOutlined />}
+                      disabled={status !== 'running'}
+                      onClick={() => handleOpenWebUI(service)}
+                    >
+                      打开Web页面
+                    </Button>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<RightOutlined />}
+                      onClick={() => navigate(`/services/${service.id}`)}
+                    >
+                      详情
+                    </Button>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<EditOutlined />}
+                      disabled={status === 'running' || status === 'starting'}
+                      onClick={() => navigate(`/services/${service.id}/edit`)}
+                    >
+                      编辑
+                    </Button>
+                    {status === 'running' ? (
+                      <Button size="small" type="text" danger onClick={() => handleStop(service.id)}>
+                        停止
+                      </Button>
+                    ) : (
+                      <Button
+                        size="small"
+                        type="text"
+                        onClick={() => handleStart(service.id)}
+                        loading={status === 'starting'}
+                      >
+                        启动
+                      </Button>
+                    )}
+                    <Button
+                      size="small"
+                      type="text"
+                      danger
+                      disabled={status === 'running' || status === 'starting'}
+                      onClick={() => setDeleteTarget(service)}
+                    >
+                      删除
+                    </Button>
+                  </Space>
+                </div>
               </Card>
             );
           })}

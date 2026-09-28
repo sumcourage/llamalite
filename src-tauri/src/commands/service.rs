@@ -120,18 +120,35 @@ pub fn restart_service(
     Ok(())
 }
 
-/// Get the current service status from the manager.
+/// Get the status of a single service.
+///
+/// The manager only tracks one process at a time, so only the service that
+/// owns it reports a live status. Every other service is reported as stopped,
+/// otherwise the UI would mark all cards as running.
 #[tauri::command]
-pub fn get_service_status(manager: State<'_, ServiceManager>) -> ServiceStatusInfo {
+pub fn get_service_status(manager: State<'_, ServiceManager>, id: String) -> ServiceStatusInfo {
     let status = manager.get_status();
-    ServiceStatusInfo {
-        id: status.service_id,
-        status: status.status,
-        model_name: status.service_name,
-        pid: status.pid,
-        port: status.port,
-        started_at: status.started_at,
-        error_message: status.error_message,
+
+    if status.service_id.as_deref() == Some(id.as_str()) {
+        ServiceStatusInfo {
+            id: status.service_id,
+            status: status.status,
+            model_name: status.service_name,
+            pid: status.pid,
+            port: status.port,
+            started_at: status.started_at,
+            error_message: status.error_message,
+        }
+    } else {
+        ServiceStatusInfo {
+            id: Some(id),
+            status: "stopped".to_string(),
+            model_name: None,
+            pid: None,
+            port: None,
+            started_at: None,
+            error_message: None,
+        }
     }
 }
 

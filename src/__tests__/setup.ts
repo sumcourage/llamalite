@@ -30,3 +30,20 @@ Object.defineProperty(navigator, 'hardwareConcurrency', {
   value: 8,
   writable: true,
 });
+
+// antd's responsive observer calls window.matchMedia, which jsdom does not implement.
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}

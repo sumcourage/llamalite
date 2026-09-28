@@ -23,6 +23,7 @@ import {
 import StatusBadge from '../../components/StatusBadge';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useServiceManager } from '../../hooks/useServiceManager';
+import type { ServiceStatus } from '../../types';
 
 const { Title, Text } = Typography;
 
@@ -33,7 +34,7 @@ const ServiceDetail: React.FC = () => {
 
   const {
     services,
-    currentStatus,
+    serviceStatuses,
     logs,
     loading,
     error,
@@ -52,6 +53,13 @@ const ServiceDetail: React.FC = () => {
   const [autoScroll, setAutoScroll] = useState(true);
 
   const service = services.find((s) => s.id === id);
+
+  // Only this service's own status is relevant; the store also holds statuses
+  // of other services, so never fall back to the shared `currentStatus`.
+  const statusInfo = id ? serviceStatuses[id] : undefined;
+  const status: ServiceStatus = statusInfo?.status ?? 'stopped';
+  const isRunning = status === 'running';
+  const isBusy = status === 'running' || status === 'starting';
 
   useEffect(() => {
     if (id) {
@@ -179,10 +187,10 @@ const ServiceDetail: React.FC = () => {
           <Title level={4} style={{ color: '#e2e8f0', margin: 0 }}>
             {service.name}
           </Title>
-          {currentStatus && <StatusBadge status={currentStatus.status} />}
+          <StatusBadge status={status} />
         </Space>
         <Space>
-          {currentStatus?.status === 'running' ? (
+          {isRunning ? (
             <>
               <Button icon={<GlobalOutlined />} onClick={handleOpenWebUI}>
                 打开Web页面
@@ -199,7 +207,7 @@ const ServiceDetail: React.FC = () => {
               type="primary"
               icon={<PlayCircleOutlined />}
               onClick={handleStart}
-              loading={currentStatus?.status === 'starting'}
+              loading={status === 'starting'}
             >
               启动
             </Button>
@@ -207,7 +215,7 @@ const ServiceDetail: React.FC = () => {
           <Button
             icon={<EditOutlined />}
             onClick={() => navigate(`/services/${id}/edit`)}
-            disabled={currentStatus?.status === 'running' || currentStatus?.status === 'starting'}
+            disabled={isBusy}
           >
             编辑
           </Button>
@@ -215,7 +223,7 @@ const ServiceDetail: React.FC = () => {
             icon={<DeleteOutlined />}
             danger
             onClick={() => setDeleteDialogOpen(true)}
-            disabled={currentStatus?.status === 'running' || currentStatus?.status === 'starting'}
+            disabled={isBusy}
           >
             删除
           </Button>
@@ -240,14 +248,14 @@ const ServiceDetail: React.FC = () => {
               {new Date(service.updatedAt).toLocaleString('zh-CN')}
             </Text>
           </Descriptions.Item>
-          {currentStatus ? (
+          {isRunning ? (
             <>
               <Descriptions.Item label="监听端口">
-                <Text style={{ color: '#e2e8f0' }}>{currentStatus.port}</Text>
+                <Text style={{ color: '#e2e8f0' }}>{statusInfo?.port}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="运行时长">
                 <Text style={{ color: '#e2e8f0' }}>
-                  {formatUptime(currentStatus.uptime)}
+                  {formatUptime(statusInfo?.uptime)}
                 </Text>
               </Descriptions.Item>
             </>

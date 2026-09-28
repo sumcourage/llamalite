@@ -128,12 +128,18 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const status = await invoke<ServiceStatusInfo | null>('get_service_status', { id });
-      set((state) => ({
-        currentStatus: status,
-        serviceStatuses: status
-          ? { ...state.serviceStatuses, [id]: status }
-          : state.serviceStatuses,
-      }));
+      set((state) => {
+        if (!status) return state;
+        const next: Partial<ServiceState> = {
+          serviceStatuses: { ...state.serviceStatuses, [id]: status },
+        };
+        // `currentStatus` describes the service that owns the running process,
+        // so polling a stopped service must not overwrite it.
+        if (status.status !== 'stopped') {
+          next.currentStatus = status;
+        }
+        return next;
+      });
     } catch (err) {
       console.error('Failed to fetch status:', err);
     }

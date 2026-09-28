@@ -160,6 +160,18 @@ html, body {
   gap: 16px;
 }
 
+/* Service card action row: wraps instead of squeezing buttons together */
+.service-card-actions {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.service-card-actions .ant-btn {
+  padding-inline: 6px;
+  font-size: 13px;
+}
+
 /* Model card grid */
 .model-grid {
   display: grid;
